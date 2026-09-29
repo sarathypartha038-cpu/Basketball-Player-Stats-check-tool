@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sports Table Check Portal</title>
+    <title>Basketball Player Stats Check Portal</title>
     
     <!-- Firebase SDK (v8.10.1) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -262,6 +262,22 @@
             color: var(--text-muted);
             margin-top: 0.5rem;
             font-weight: 500;
+        }
+
+        .card-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            margin-top: 0.75rem;
+        }
+
+        .badge {
+            background-color: var(--light-blue);
+            color: var(--secondary-blue);
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
         }
 
         .card-action {
@@ -533,7 +549,7 @@
     <header>
         <div class="header-container">
             <div class="logo-title">
-                <h1>Sports Table Check Portal</h1>
+                <h1>Basketball Player Stats Check Portal</h1>
             </div>
             <div class="user-controls">
                 <div class="user-status" id="userStatusDisplay">
@@ -563,6 +579,10 @@
                 <div class="metric-card">
                     <span>Competitions</span>
                     <strong id="metricCompetitions">0</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Saved Player Mappings</span>
+                    <strong id="metricMappings">0</strong>
                 </div>
             </section>
 
@@ -597,7 +617,7 @@
         </main>
 
         <footer>
-            &copy; Sports Table Check Portal. All rights reserved.
+            &copy; Basketball Player Stats Check Portal. All rights reserved.
         </footer>
     </div>
 
@@ -712,15 +732,16 @@
 
         // 4. Initialization & Session Persistence
         window.addEventListener('DOMContentLoaded', () => {
-            const savedRole = localStorage.getItem('sportsPortalRole');
+            const savedRole = localStorage.getItem('playerStatsPortalRole');
             if (savedRole) {
                 currentUserRole = savedRole;
                 updateUserUI();
                 document.getElementById('portalWrapper').classList.remove('hidden');
                 fetchTableChecks();
+                loadPlayerMappingCount();
             } else {
                 currentUserRole = null;
-                localStorage.removeItem('sportsPortalRole');
+                localStorage.removeItem('playerStatsPortalRole');
                 document.getElementById('portalWrapper').classList.add('hidden');
                 updateUserUI();
                 openModal('loginModal');
@@ -750,7 +771,7 @@
 
             showLoadingState();
             
-            let query = db.collection('tableChecks');
+            let query = db.collection('playerStatsCompetitions');
             
             // Non-admin users only fetch active items
             if (currentUserRole !== 'ADMIN') {
@@ -778,6 +799,30 @@
                 .catch((error) => {
                     console.error("Error reading Firestore: ", error);
                     renderEmptyState("Failed to load data from database.");
+                });
+        }
+
+        function loadPlayerMappingCount() {
+            if (!requireLogin()) return;
+            
+            db.collection('playerMappings').get()
+                .then((snapshot) => {
+                    let totalMappings = 0;
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        if (data && data.players && typeof data.players === 'object') {
+                            totalMappings += Object.keys(data.players).length;
+                        } else {
+                            totalMappings++;
+                        }
+                    });
+                    const metricElem = document.getElementById('metricMappings');
+                    if (metricElem) {
+                        metricElem.textContent = totalMappings;
+                    }
+                })
+                .catch((err) => {
+                    console.error("Error loading player mappings count: ", err);
                 });
         }
 
@@ -1019,6 +1064,12 @@
                                 ${isInactive ? '<span style="font-size:0.75rem; color:var(--danger-red); border:1px solid var(--danger-red); padding:1px 5px; border-radius:4px;">Inactive</span>' : ''}
                             </div>
                             <div class="card-subtitle">File: ${escapeHtml(fileName)}</div>
+                            <div class="card-subtitle" style="font-size:0.8rem; margin-top:0.25rem; font-weight:600; color:var(--primary-blue);">Tool Type: Player Stats Check</div>
+                            <div class="card-badges">
+                                <span class="badge">✓ RS3 Parser</span>
+                                <span class="badge">✓ Official Parser</span>
+                                <span class="badge">✓ Player Mapping Enabled</span>
+                            </div>
                         </div>
                         <div class="card-action">
                             <span>Open HTML Tool</span>
@@ -1027,7 +1078,7 @@
                         ${currentUserRole === 'ADMIN' ? `
                             <div class="admin-card-actions" onclick="event.stopPropagation()">
                                 <button class="btn-card-action btn-edit" onclick="openEditModal('${item.id}')">Edit</button>
-                                <button class="btn-card-action btn-deactivate" onclick="toggleActiveStatus('${item.id}', ${item.active})">
+                                <button class="btn-card-action btn-deactivate" onclick="toggleActiveStatus('${item.id}',${item.active})">
                                     ${item.active ? 'Deactivate' : 'Activate'}
                                 </button>
                                 <button class="btn-card-action btn-delete" onclick="deleteCompetition('${item.id}')">Delete</button>
@@ -1190,7 +1241,7 @@
         function handleAuthClick() {
             // Logout logic
             currentUserRole = null;
-            localStorage.removeItem('sportsPortalRole');
+            localStorage.removeItem('playerStatsPortalRole');
             rawData = [];
             selectedSport = null;
             selectedCountry = null;
@@ -1207,20 +1258,22 @@
 
             if (user === "OSED" && pass === "OSED@1234") {
                 currentUserRole = 'USER';
-                localStorage.setItem('sportsPortalRole', currentUserRole);
+                localStorage.setItem('playerStatsPortalRole', currentUserRole);
                 closeModal('loginModal');
                 resetLoginForm();
                 updateUserUI();
                 document.getElementById('portalWrapper').classList.remove('hidden');
                 fetchTableChecks();
+                loadPlayerMappingCount();
             } else if (user === "Partha Sarathy" && pass === "Radha@123") {
                 currentUserRole = 'ADMIN';
-                localStorage.setItem('sportsPortalRole', currentUserRole);
+                localStorage.setItem('playerStatsPortalRole', currentUserRole);
                 closeModal('loginModal');
                 resetLoginForm();
                 updateUserUI();
                 document.getElementById('portalWrapper').classList.remove('hidden');
                 fetchTableChecks();
+                loadPlayerMappingCount();
             } else {
                 showAlert('loginAlert', 'Invalid username or password', 'error');
             }
@@ -1331,11 +1384,20 @@
             saveBtn.textContent = 'Saving...';
 
             if (docId) {
-                db.collection('tableChecks').doc(docId).update({
+                db.collection('playerStatsCompetitions').doc(docId).update({
                     sport: sport,
                     country: country,
                     competition: competition,
-                    file: file
+                    file: file,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                })
+                .then(() => {
+                    return db.collection('playerStatsActivityLogs').add({
+                        action: 'Competition Updated',
+                        competitionId: docId,
+                        competitionName: competition,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
                 })
                 .then(() => {
                     showAlert('adminAlert', 'Competition updated successfully!', 'success');
@@ -1352,13 +1414,24 @@
                     saveBtn.textContent = 'Save Competition';
                 });
             } else {
-                db.collection('tableChecks').add({
+                let newDocRef;
+                db.collection('playerStatsCompetitions').add({
                     sport: sport,
                     country: country,
                     competition: competition,
                     file: file,
                     active: true,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                })
+                .then((docRef) => {
+                    newDocRef = docRef;
+                    return db.collection('playerStatsActivityLogs').add({
+                        action: 'Competition Added',
+                        competitionId: docRef.id,
+                        competitionName: competition,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
                 })
                 .then(() => {
                     showAlert('adminAlert', 'Competition saved successfully!', 'success');
@@ -1382,8 +1455,16 @@
             if (currentUserRole !== 'ADMIN') return;
             if (!confirm(`Are you sure you want to ${currentActive ? 'deactivate' : 'activate'} this competition?`)) return;
 
-            db.collection('tableChecks').doc(docId).update({
-                active: !currentActive
+            db.collection('playerStatsCompetitions').doc(docId).update({
+                active: !currentActive,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            })
+            .then(() => {
+                return db.collection('playerStatsActivityLogs').add({
+                    action: 'Competition Updated',
+                    competitionId: docId,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
             })
             .then(() => {
                 fetchTableChecks();
@@ -1398,7 +1479,14 @@
             if (currentUserRole !== 'ADMIN') return;
             if (!confirm("Are you sure you want to permanently delete this competition?")) return;
 
-            db.collection('tableChecks').doc(docId).delete()
+            db.collection('playerStatsCompetitions').doc(docId).delete()
+                .then(() => {
+                    return db.collection('playerStatsActivityLogs').add({
+                        action: 'Competition Deleted',
+                        competitionId: docId,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                })
                 .then(() => {
                     fetchTableChecks();
                 })
