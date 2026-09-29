@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sports Table Check Portal</title>
+    
+    <!-- Firebase SDK (v8.10.1) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <style>
+        :root {
+            --primary-blue: #1e3a8a;
+            --secondary-blue: #2563eb;
+            --hover-blue: #1d4ed8;
+            --light-blue: #eff6ff;
+            --accent-blue: #60a5fa;
+            --dark-gray: #0f172a;
+            --light-gray: #f8fafc;
+            --text-muted: #64748b;
+            --white: #ffffff;
+            --danger-red: #ef4444;
+            --danger-hover: #dc2626;
+            --warning-amber: #f59e0b;
+            --success-green: #10b981;
+            --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            --hover-shadow: 0 12px 20px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+            --transition: all 0.25s ease;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--light-gray);
+            color: var(--dark-gray);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header Navigation */
+        header {
+            background-color: var(--primary-blue);
+            color: var(--white);
+            padding: 1.25rem 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+        }
+
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-title h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+
+        .user-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-status {
+            font-size: 0.875rem;
+            background: rgba(255,255,255,0.15);
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 500;
+        }
+
+        .status-badge {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--accent-blue);
+        }
+
+        .status-badge.admin {
+            background-color: var(--warning-amber);
+        }
+
+        .btn-header {
+            background-color: transparent;
+            border: 1.5px solid var(--accent-blue);
+            color: var(--white);
+            padding: 0.5rem 1.25rem;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-header:hover {
+            background-color: var(--secondary-blue);
+            border-color: var(--secondary-blue);
+        }
+
+        /* Protected Content Wrapper */
+        #portalWrapper {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            width: 100%;
+        }
+
+        /* Main Container */
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+            flex: 1;
+            width: 100%;
+        }
+
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            background: var(--white);
+            padding: 1.25rem;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            border-left: 4px solid var(--secondary-blue);
+        }
+
+        .metric-card span {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+            font-weight: 600;
+        }
+
+        .metric-card strong {
+            font-size: 1.75rem;
+            color: var(--primary-blue);
+        }
+
+        /* Search Container */
+        .search-container {
+            margin-bottom: 2rem;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+            transition: var(--transition);
+            background-color: var(--white);
+        }
+
+        .search-input:focus {
+            border-color: var(--secondary-blue);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        /* Breadcrumb / Back Control Bar */
+        .view-controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            min-height: 42px;
+        }
+
+        .breadcrumb {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary-blue);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .back-btn {
+            background-color: var(--light-blue);
+            color: var(--secondary-blue);
+            border: 1px solid var(--accent-blue);
+            padding: 0.5rem 1.25rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: var(--transition);
+        }
+
+        .back-btn:hover {
+            background-color: var(--secondary-blue);
+            color: var(--white);
+        }
+
+        /* Card Grid */
+        .portal-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .card {
+            background-color: var(--white);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--card-shadow);
+            cursor: pointer;
+            transition: var(--transition);
+            border: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--hover-shadow);
+            border-color: var(--accent-blue);
+        }
+
+        .card-header-area {
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--dark-gray);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            word-break: break-word;
+        }
+
+        .card-subtitle {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            font-weight: 500;
+        }
+
+        .card-action {
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--secondary-blue);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Admin Action Buttons on Cards */
+        .admin-card-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        .btn-card-action {
+            padding: 0.35rem 0.65rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+            transition: var(--transition);
+        }
+
+        .btn-edit {
+            background-color: var(--light-blue);
+            color: var(--secondary-blue);
+        }
+
+        .btn-edit:hover {
+            background-color: var(--secondary-blue);
+            color: var(--white);
+        }
+
+        .btn-deactivate {
+            background-color: #fffbeb;
+            color: var(--warning-amber);
+            border: 1px solid var(--warning-amber);
+        }
+
+        .btn-deactivate:hover {
+            background-color: var(--warning-amber);
+            color: var(--white);
+        }
+
+        .btn-delete {
+            background-color: #fef2f2;
+            color: var(--danger-red);
+        }
+
+        .btn-delete:hover {
+            background-color: var(--danger-red);
+            color: var(--white);
+        }
+
+        /* Loading Spinner & Status Display */
+        .loading-spinner {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem 1rem;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #e2e8f0;
+            border-top: 4px solid var(--secondary-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-message {
+            text-align: center;
+            padding: 4rem 1rem;
+            background-color: var(--white);
+            border-radius: 12px;
+            box-shadow: var(--card-shadow);
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            grid-column: 1 / -1;
+        }
+
+        /* Modals */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-card {
+            background-color: var(--white);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 500px;
+            padding: 2rem;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+            position: relative;
+            transform: translateY(10px);
+            transition: transform 0.25s ease;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-overlay.active .modal-card {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h2 {
+            font-size: 1.3rem;
+            color: var(--primary-blue);
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0.25rem;
+            line-height: 1;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--dark-gray);
+            margin-bottom: 0.35rem;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .form-control:focus {
+            border-color: var(--secondary-blue);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        .submit-btn {
+            width: 100%;
+            background-color: var(--secondary-blue);
+            color: var(--white);
+            border: none;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            margin-top: 0.5rem;
+        }
+
+        .submit-btn:hover {
+            background-color: var(--hover-blue);
+        }
+
+        .alert-box {
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .alert-box.error {
+            background-color: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+            display: block;
+        }
+
+        .alert-box.success {
+            background-color: #f0fdf4;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+            display: block;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 1.5rem;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            border-top: 1px solid #e2e8f0;
+            background-color: var(--white);
+            margin-top: auto;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 640px) {
+            header {
+                padding: 1rem;
+            }
+            main {
+                padding: 1rem;
+            }
+            .portal-grid {
+                grid-template-columns: 1fr;
+            }
+            .header-container {
+                flex-direction: column;
+                gap: 0.75rem;
+                align-items: flex-start;
+            }
+            .user-controls {
+                width: 100%;
+                justify-content: space-between;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="header-container">
+            <div class="logo-title">
+                <h1>Sports Table Check Portal</h1>
+            </div>
+            <div class="user-controls">
+                <div class="user-status" id="userStatusDisplay">
+                    <span class="status-badge" id="userStatusBadge"></span>
+                    <span id="userRoleText">Not Logged In</span>
+                </div>
+                <button class="btn-header hidden" id="addCompNavBtn" onclick="openAddModal()">Add Competition</button>
+                <button class="btn-header" id="authBtn" onclick="handleAuthClick()">Logout</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Protected Application Content Wrapper -->
+    <div id="portalWrapper" class="hidden">
+        <!-- Main Container -->
+        <main>
+            <!-- Metrics Bar -->
+            <section class="metrics-grid">
+                <div class="metric-card">
+                    <span>Sports</span>
+                    <strong id="metricSports">0</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Countries</span>
+                    <strong id="metricCountries">0</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Competitions</span>
+                    <strong id="metricCompetitions">0</strong>
+                </div>
+            </section>
+
+            <!-- Search Bar -->
+            <section class="search-container">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    class="search-input" 
+                    placeholder="Search sports..." 
+                    oninput="handleScopedSearch()"
+                >
+            </section>
+
+            <!-- Navigation Breadcrumbs & Back Button -->
+            <div class="view-controls">
+                <div class="breadcrumb" id="breadcrumb">
+                    <span>Sports</span>
+                </div>
+                <button class="back-btn hidden" id="backBtn" onclick="navigateBack()">
+                    ← Back
+                </button>
+            </div>
+
+            <!-- Dynamic Portal Grid -->
+            <section class="portal-grid" id="portalGrid">
+                <div class="loading-spinner">
+                    <div class="spinner"></div>
+                    <div>Loading data from database...</div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            &copy; Sports Table Check Portal. All rights reserved.
+        </footer>
+    </div>
+
+    <!-- Mandatory Login Modal (No close button, cannot be dismissed without auth) -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2>User Authentication</h2>
+            </div>
+            <div id="loginAlert" class="alert-box"></div>
+            <form onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="loginUser">Username</label>
+                    <input type="text" id="loginUser" class="form-control" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="loginPass">Password</label>
+                    <input type="password" id="loginPass" class="form-control" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="submit-btn">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Form Modal (Add / Edit) -->
+    <div class="modal-overlay" id="adminModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 id="adminModalTitle">Add Competition</h2>
+                <button class="close-btn" onclick="closeModal('adminModal')">&times;</button>
+            </div>
+            <div id="adminAlert" class="alert-box"></div>
+            <form onsubmit="handleSaveCompetition(event)">
+                <input type="hidden" id="editDocId" value="">
+                <div class="form-group">
+                    <label for="addSport">Sport Name</label>
+                    <input type="text" id="addSport" class="form-control" placeholder="e.g. Rugby" required>
+                </div>
+                <div class="form-group">
+                    <label for="addCountry">Country Name</label>
+                    <input type="text" id="addCountry" class="form-control" placeholder="e.g. Australia" required>
+                </div>
+                <div class="form-group">
+                    <label for="addCompetition">Competition Name</label>
+                    <input type="text" id="addCompetition" class="form-control" placeholder="e.g. National Rugby League" required>
+                </div>
+                <div class="form-group">
+                    <label for="addFile">HTML File Name</label>
+                    <input type="text" id="addFile" class="form-control" placeholder="e.g. nrl_table_check.html" required>
+                </div>
+                <button type="submit" id="saveCompBtn" class="submit-btn">Save Competition</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // 1. Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDDaXsZls8nYshhETH249svHPmcAwuiH4w",
+            authDomain: "tablechecks-68698.firebaseapp.com",
+            projectId: "tablechecks-68698",
+            storageBucket: "tablechecks-68698.firebasestorage.app",
+            messagingSenderId: "406400003629",
+            appId: "1:406400003629:web:24dc3b10bdd6149008d2a4"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // 2. Application State
+        let rawData = [];
+        let currentView = 'SPORTS'; // 'SPORTS' | 'COUNTRIES' | 'COMPETITIONS'
+        let selectedSport = null;
+        let selectedCountry = null;
+        let currentUserRole = null; // null | 'USER' | 'ADMIN'
+
+        // Dynamic Icon Resolver
+        const sportIcons = {
+            'rugby': '🏉',
+            'basketball': '🏀',
+            'volleyball': '🏐',
+            'hockey': '🏑',
+            'baseball': '⚾',
+            'american football': '🏈',
+            'australian football': '🏉',
+            'handball': '🤾',
+            'football': '⚽',
+            'soccer': '⚽',
+            'tennis': '🎾',
+            'table tennis': '🏓',
+            'cricket': '🏏',
+            'badminton': '🏸',
+            'golf': '⛳',
+            'ice hockey': '🏒'
+        };
+
+        function getSportIcon(sportName) {
+            if (!sportName) return '🏆';
+            const clean = sportName.trim().toLowerCase();
+            return sportIcons[clean] || '🏆';
+        }
+
+        // 3. Authorization Guard
+        function requireLogin() {
+            if (currentUserRole === null) {
+                openModal('loginModal');
+                return false;
+            }
+            return true;
+        }
+
+        // 4. Initialization & Session Persistence
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedRole = localStorage.getItem('sportsPortalRole');
+            if (savedRole) {
+                currentUserRole = savedRole;
+                updateUserUI();
+                document.getElementById('portalWrapper').classList.remove('hidden');
+                fetchTableChecks();
+            } else {
+                currentUserRole = null;
+                localStorage.removeItem('sportsPortalRole');
+                document.getElementById('portalWrapper').classList.add('hidden');
+                updateUserUI();
+                openModal('loginModal');
+            }
+        });
+
+        // 5. Popstate Event Listener for Browser History Navigation
+        window.addEventListener('popstate', (event) => {
+            if (!event.state) {
+                currentView = 'SPORTS';
+                selectedSport = null;
+                selectedCountry = null;
+                document.getElementById('searchInput').value = '';
+            } else {
+                currentView = event.state.view;
+                selectedSport = event.state.sport || null;
+                selectedCountry = event.state.country || null;
+                document.getElementById('searchInput').value = event.state.search || '';
+            }
+
+            renderCurrentView();
+        });
+
+        // 5. Firestore Fetch Data
+        function fetchTableChecks() {
+            if (!requireLogin()) return;
+
+            showLoadingState();
+            
+            let query = db.collection('tableChecks');
+            
+            // Non-admin users only fetch active items
+            if (currentUserRole !== 'ADMIN') {
+                query = query.where('active', '==', true);
+            }
+
+            query.get()
+                .then((querySnapshot) => {
+                    rawData = [];
+                    querySnapshot.forEach((doc) => {
+                        rawData.push({ id: doc.id, ...doc.data() });
+                    });
+                    
+                    calculateMetrics();
+                    renderCurrentView();
+
+                    // Initial State after successful login and data load
+                    history.replaceState({
+                        view: 'SPORTS',
+                        sport: null,
+                        country: null,
+                        search: document.getElementById('searchInput').value
+                    }, '', '');
+                })
+                .catch((error) => {
+                    console.error("Error reading Firestore: ", error);
+                    renderEmptyState("Failed to load data from database.");
+                });
+        }
+
+        function showLoadingState() {
+            const grid = document.getElementById('portalGrid');
+            grid.innerHTML = `
+                <div class="loading-spinner">
+                    <div class="spinner"></div>
+                    <div>Loading data from database...</div>
+                </div>
+            `;
+        }
+
+        // 6. Metrics & Render Routing
+        function calculateMetrics() {
+            const sportsSet = new Set();
+            const countriesSet = new Set();
+            let totalCompetitions = 0;
+
+            rawData.forEach(item => {
+                if (currentUserRole === 'ADMIN' || item.active) {
+                    if (item.sport) sportsSet.add(item.sport.trim().toLowerCase());
+                    if (item.country) countriesSet.add(item.country.trim().toLowerCase());
+                    totalCompetitions++;
+                }
+            });
+
+            document.getElementById('metricSports').textContent = sportsSet.size;
+            document.getElementById('metricCountries').textContent = countriesSet.size;
+            document.getElementById('metricCompetitions').textContent = totalCompetitions;
+        }
+
+        function renderCurrentView() {
+            if (!requireLogin()) return;
+
+            updateSearchPlaceholder();
+            updateBreadcrumbs();
+
+            if (rawData.length === 0) {
+                renderEmptyState("No competitions available.");
+                return;
+            }
+
+            switch(currentView) {
+                case 'SPORTS':
+                    renderSportsView();
+                    break;
+                case 'COUNTRIES':
+                    renderCountriesView();
+                    break;
+                case 'COMPETITIONS':
+                    renderCompetitionsView();
+                    break;
+            }
+        }
+
+        function renderEmptyState(msg) {
+            document.getElementById('portalGrid').innerHTML = `<div class="status-message">${msg}</div>`;
+        }
+
+        function updateSearchPlaceholder() {
+            const input = document.getElementById('searchInput');
+            if (currentView === 'SPORTS') {
+                input.placeholder = "Search Sports only...";
+            } else if (currentView === 'COUNTRIES') {
+                input.placeholder = `Search Countries under ${selectedSport}...`;
+            } else if (currentView === 'COMPETITIONS') {
+                input.placeholder = `Search Competitions in ${selectedCountry}...`;
+            }
+        }
+
+        // --- STEP 1: SPORTS VIEW ---
+        function renderSportsView() {
+            currentView = 'SPORTS';
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+
+            // Aggregate sports and total competitions per sport
+            const sportsMap = {};
+            rawData.forEach(item => {
+                if (currentUserRole !== 'ADMIN' && !item.active) return;
+                const sp = item.sport ? item.sport.trim() : 'Unknown';
+                if (!sportsMap[sp]) {
+                    sportsMap[sp] = 0;
+                }
+                sportsMap[sp]++;
+            });
+
+            let sportsList = Object.keys(sportsMap).sort();
+
+            // Filter sports if query present
+            if (query !== '') {
+                sportsList = sportsList.filter(sp => sp.toLowerCase().includes(query));
+            }
+
+            if (sportsList.length === 0) {
+                renderEmptyState(query ? "No sports match your search." : "No sports available.");
+                return;
+            }
+
+            let html = '';
+            sportsList.forEach(sport => {
+                const icon = getSportIcon(sport);
+                const count = sportsMap[sport];
+                html += `
+                    <div class="card" onclick="selectSport('${escapeQuotes(sport)}')">
+                        <div class="card-header-area">
+                            <div class="card-title">${icon} ${escapeHtml(sport)}</div>
+                            <div class="card-subtitle">${count} Competition${count !== 1 ? 's' : ''}</div>
+                        </div>
+                        <div class="card-action">
+                            <span>Browse Countries</span>
+                            <span>&rarr;</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            document.getElementById('portalGrid').innerHTML = html;
+        }
+
+        function selectSport(sport) {
+            if (!requireLogin()) return;
+            selectedSport = sport;
+            currentView = 'COUNTRIES';
+            document.getElementById('searchInput').value = '';
+            
+            history.pushState({
+                view: 'COUNTRIES',
+                sport: selectedSport,
+                country: null,
+                search: document.getElementById('searchInput').value
+            }, '', '');
+
+            renderCurrentView();
+        }
+
+        // --- STEP 2: COUNTRIES VIEW ---
+        function renderCountriesView() {
+            currentView = 'COUNTRIES';
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+
+            // Filter items under selected sport
+            const filteredBySport = rawData.filter(item => {
+                if (currentUserRole !== 'ADMIN' && !item.active) return false;
+                return item.sport && item.sport.trim().toLowerCase() === selectedSport.toLowerCase();
+            });
+
+            // Aggregate countries
+            const countriesMap = {};
+            filteredBySport.forEach(item => {
+                const ct = item.country ? item.country.trim() : 'Unknown';
+                countriesMap[ct] = (countriesMap[ct] || 0) + 1;
+            });
+
+            let countryList = Object.keys(countriesMap).sort();
+
+            // Filter countries if query present
+            if (query !== '') {
+                countryList = countryList.filter(ct => ct.toLowerCase().includes(query));
+            }
+
+            if (countryList.length === 0) {
+                renderEmptyState(query ? "No countries match your search." : "No countries available for this sport.");
+                return;
+            }
+
+            let html = '';
+            countryList.forEach(country => {
+                const count = countriesMap[country];
+                html += `
+                    <div class="card" onclick="selectCountry('${escapeQuotes(country)}')">
+                        <div class="card-header-area">
+                            <div class="card-title">🌐 ${escapeHtml(country)}</div>
+                            <div class="card-subtitle">${count} Competition${count !== 1 ? 's' : ''}</div>
+                        </div>
+                        <div class="card-action">
+                            <span>Browse Competitions</span>
+                            <span>&rarr;</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            document.getElementById('portalGrid').innerHTML = html;
+        }
+
+        function selectCountry(country) {
+            if (!requireLogin()) return;
+            selectedCountry = country;
+            currentView = 'COMPETITIONS';
+            document.getElementById('searchInput').value = '';
+
+            history.pushState({
+                view: 'COMPETITIONS',
+                sport: selectedSport,
+                country: selectedCountry,
+                search: document.getElementById('searchInput').value
+            }, '', '');
+
+            renderCurrentView();
+        }
+
+        // --- STEP 3: COMPETITIONS VIEW ---
+        function renderCompetitionsView() {
+            currentView = 'COMPETITIONS';
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+
+            let competitions = rawData.filter(item => {
+                if (currentUserRole !== 'ADMIN' && !item.active) return false;
+                return item.sport && item.sport.trim().toLowerCase() === selectedSport.toLowerCase() &&
+                       item.country && item.country.trim().toLowerCase() === selectedCountry.toLowerCase();
+            });
+
+            if (query !== '') {
+                competitions = competitions.filter(item => {
+                    const compName = (item.competition || '').toLowerCase();
+                    const fullFormat = `${item.country || ''} - ${item.competition || ''}`.toLowerCase();
+                    return compName.includes(query) || fullFormat.includes(query);
+                });
+            }
+
+            if (competitions.length === 0) {
+                renderEmptyState(query ? "No competitions match your search." : "No competitions available.");
+                return;
+            }
+
+            let html = '';
+            competitions.forEach(item => {
+                const countryName = item.country ? item.country.trim() : '';
+                const compName = item.competition ? item.competition.trim() : 'Unnamed Competition';
+                const fileName = item.file || '#';
+                const isInactive = !item.active;
+
+                html += `
+                    <div class="card" onclick="launchCompetition('${escapeQuotes(fileName)}')">
+                        <div class="card-header-area">
+                            <div class="card-title">
+                                🏆 ${escapeHtml(countryName)} - ${escapeHtml(compName)}
+                                ${isInactive ? '<span style="font-size:0.75rem; color:var(--danger-red); border:1px solid var(--danger-red); padding:1px 5px; border-radius:4px;">Inactive</span>' : ''}
+                            </div>
+                            <div class="card-subtitle">File: ${escapeHtml(fileName)}</div>
+                        </div>
+                        <div class="card-action">
+                            <span>Open HTML Tool</span>
+                            <span>&rarr;</span>
+                        </div>
+                        ${currentUserRole === 'ADMIN' ? `
+                            <div class="admin-card-actions" onclick="event.stopPropagation()">
+                                <button class="btn-card-action btn-edit" onclick="openEditModal('${item.id}')">Edit</button>
+                                <button class="btn-card-action btn-deactivate" onclick="toggleActiveStatus('${item.id}', ${item.active})">
+                                    ${item.active ? 'Deactivate' : 'Activate'}
+                                </button>
+                                <button class="btn-card-action btn-delete" onclick="deleteCompetition('${item.id}')">Delete</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            document.getElementById('portalGrid').innerHTML = html;
+        }
+
+        // --- STEP 4: LAUNCH COMPETITION FILE ---
+        function launchCompetition(filePath) {
+            if (!requireLogin()) return;
+            if (!filePath || filePath === '#') {
+                alert("No HTML file associated with this competition.");
+                return;
+            }
+            window.location.href = filePath;
+        }
+
+        // 7. Official AFL Table Parser Logic
+        function parseOfficialAFLTable(rawText) {
+            if (!rawText || typeof rawText !== 'string') return [];
+
+            const IGNORED_MARKERS = new Set([
+                'TOP 6', 'WC', 'NMFC', 'RICH', 'WCE', 
+                'GWS', 'ADEL', 'SYD', 'ESS', 'GEEL', 'PORT'
+            ]);
+
+            const TEAM_ALIASES = {
+                "Fremantle": "Fremantle Dockers",
+                "Adelaide Crows": "Adelaide",
+                "Gold Coast SUNS": "Gold Coast Suns",
+                "GWS GIANTS": "GWS Giants"
+            };
+
+            const lines = rawText
+                .split(/\r?\n/)
+                .map(line => line.trim())
+                .filter(line => line.length > 0)
+                .filter(line => !IGNORED_MARKERS.has(line.toUpperCase()));
+
+            const results = [];
+            let i = 0;
+
+            while (i < lines.length) {
+                const posVal = parseInt(lines[i], 10);
+                const isPosition = !isNaN(posVal) && posVal >= 1 && posVal <= 18 && lines[i] === posVal.toString();
+
+                if (isPosition && (i + 9 < lines.length)) {
+                    const position = posVal;
+                    const teamRaw = lines[i + 1];
+
+                    const played = parseInt(lines[i + 2], 10);
+                    const points = parseInt(lines[i + 3], 10);
+                    // lines[i + 4] is Percentage (ignored)
+                    const wins = parseInt(lines[i + 5], 10);
+                    const losses = parseInt(lines[i + 6], 10);
+                    const draws = parseInt(lines[i + 7], 10);
+                    const pointsFor = parseInt(lines[i + 8], 10);
+                    const pointsAgainst = parseInt(lines[i + 9], 10);
+
+                    if (!isNaN(played) && !isNaN(points) && !isNaN(wins) && 
+                        !isNaN(losses) && !isNaN(draws) && !isNaN(pointsFor) && !isNaN(pointsAgainst)) {
+
+                        const normalizedTeam = TEAM_ALIASES[teamRaw] || teamRaw;
+                        const difference = pointsFor - pointsAgainst;
+
+                        results.push({
+                            pos: position,
+                            team: normalizedTeam,
+                            played: played,
+                            wins: wins,
+                            draws: draws,
+                            losses: losses,
+                            for: pointsFor,
+                            against: pointsAgainst,
+                            difference: difference,
+                            points: points
+                        });
+
+                        i += 10;
+                        continue;
+                    }
+                }
+                i++;
+            }
+
+            return results;
+        }
+
+        // 8. Search Handler
+        function handleScopedSearch() {
+            if (!requireLogin()) return;
+            
+            // Keep search input state updated in history state
+            const currentSearch = document.getElementById('searchInput').value;
+            history.replaceState({
+                view: currentView,
+                sport: selectedSport,
+                country: selectedCountry,
+                search: currentSearch
+            }, '', '');
+
+            renderCurrentView();
+        }
+
+        // 9. Navigation Breadcrumbs & Back Logic
+        function navigateBack() {
+            if (!requireLogin()) return;
+            history.back();
+        }
+
+        function updateBreadcrumbs() {
+            const breadcrumb = document.getElementById('breadcrumb');
+            const backBtn = document.getElementById('backBtn');
+
+            if (currentView === 'SPORTS') {
+                breadcrumb.innerHTML = `<span>Sports</span>`;
+                backBtn.classList.add('hidden');
+            } else if (currentView === 'COUNTRIES') {
+                breadcrumb.innerHTML = `
+                    <span style="color: var(--text-muted); cursor: pointer;" onclick="resetToSports()">Sports</span>
+                    <span>&rsaquo;</span>
+                    <span>${escapeHtml(selectedSport)}</span>
+                `;
+                backBtn.classList.remove('hidden');
+            } else if (currentView === 'COMPETITIONS') {
+                breadcrumb.innerHTML = `
+                    <span style="color: var(--text-muted); cursor: pointer;" onclick="resetToSports()">Sports</span>
+                    <span>&rsaquo;</span>
+                    <span style="color: var(--text-muted); cursor: pointer;" onclick="selectSport('${escapeQuotes(selectedSport)}')">${escapeHtml(selectedSport)}</span>
+                    <span>&rsaquo;</span>
+                    <span>${escapeHtml(selectedCountry)}</span>
+                `;
+                backBtn.classList.remove('hidden');
+            }
+        }
+
+        function resetToSports() {
+            if (!requireLogin()) return;
+            selectedSport = null;
+            selectedCountry = null;
+            currentView = 'SPORTS';
+            document.getElementById('searchInput').value = '';
+            
+            history.pushState({
+                view: 'SPORTS',
+                sport: null,
+                country: null,
+                search: ''
+            }, '', '');
+
+            renderCurrentView();
+        }
+
+        // 10. Authentication & Session Management
+        function handleAuthClick() {
+            // Logout logic
+            currentUserRole = null;
+            localStorage.removeItem('sportsPortalRole');
+            rawData = [];
+            selectedSport = null;
+            selectedCountry = null;
+            currentView = 'SPORTS';
+            document.getElementById('portalWrapper').classList.add('hidden');
+            updateUserUI();
+            openModal('loginModal');
+        }
+
+        function handleLogin(event) {
+            event.preventDefault();
+            const user = document.getElementById('loginUser').value.trim();
+            const pass = document.getElementById('loginPass').value.trim();
+
+            if (user === "OSED" && pass === "OSED@1234") {
+                currentUserRole = 'USER';
+                localStorage.setItem('sportsPortalRole', currentUserRole);
+                closeModal('loginModal');
+                resetLoginForm();
+                updateUserUI();
+                document.getElementById('portalWrapper').classList.remove('hidden');
+                fetchTableChecks();
+            } else if (user === "Partha Sarathy" && pass === "Radha@123") {
+                currentUserRole = 'ADMIN';
+                localStorage.setItem('sportsPortalRole', currentUserRole);
+                closeModal('loginModal');
+                resetLoginForm();
+                updateUserUI();
+                document.getElementById('portalWrapper').classList.remove('hidden');
+                fetchTableChecks();
+            } else {
+                showAlert('loginAlert', 'Invalid username or password', 'error');
+            }
+        }
+
+        function resetLoginForm() {
+            document.getElementById('loginUser').value = '';
+            document.getElementById('loginPass').value = '';
+            showAlert('loginAlert', '', 'none');
+        }
+
+        function updateUserUI() {
+            const authBtn = document.getElementById('authBtn');
+            const addCompNavBtn = document.getElementById('addCompNavBtn');
+            const roleText = document.getElementById('userRoleText');
+            const badge = document.getElementById('userStatusBadge');
+
+            if (currentUserRole === 'ADMIN') {
+                authBtn.classList.remove('hidden');
+                addCompNavBtn.classList.remove('hidden');
+                roleText.textContent = 'Logged in as: Admin';
+                badge.className = 'status-badge admin';
+            } else if (currentUserRole === 'USER') {
+                authBtn.classList.remove('hidden');
+                addCompNavBtn.classList.add('hidden');
+                roleText.textContent = 'Logged in as: User';
+                badge.className = 'status-badge';
+            } else {
+                authBtn.classList.add('hidden');
+                addCompNavBtn.classList.add('hidden');
+                roleText.textContent = 'Not Logged In';
+                badge.className = 'status-badge';
+            }
+        }
+
+        // 11. Admin Operations (CRUD)
+        function openAddModal() {
+            if (!requireLogin()) return;
+            if (currentUserRole !== 'ADMIN') {
+                alert("Access Denied: Only Admin users can add competitions.");
+                return;
+            }
+
+            document.getElementById('adminModalTitle').textContent = 'Add Competition';
+            document.getElementById('editDocId').value = '';
+            document.getElementById('addSport').value = selectedSport || '';
+            document.getElementById('addCountry').value = selectedCountry || '';
+            document.getElementById('addCompetition').value = '';
+            document.getElementById('addFile').value = '';
+            showAlert('adminAlert', '', 'none');
+            openModal('adminModal');
+        }
+
+        function openEditModal(docId) {
+            if (!requireLogin()) return;
+            if (currentUserRole !== 'ADMIN') {
+                alert("Access Denied: Only Admin users can edit competitions.");
+                return;
+            }
+
+            const item = rawData.find(d => d.id === docId);
+            if (!item) return;
+
+            document.getElementById('adminModalTitle').textContent = 'Edit Competition';
+            document.getElementById('editDocId').value = docId;
+            document.getElementById('addSport').value = item.sport || '';
+            document.getElementById('addCountry').value = item.country || '';
+            document.getElementById('addCompetition').value = item.competition || '';
+            document.getElementById('addFile').value = item.file || '';
+            showAlert('adminAlert', '', 'none');
+            openModal('adminModal');
+        }
+
+        function handleSaveCompetition(event) {
+            event.preventDefault();
+            if (!requireLogin()) return;
+
+            if (currentUserRole !== 'ADMIN') {
+                showAlert('adminAlert', 'Permission denied: Admin rights required.', 'error');
+                return;
+            }
+
+            const docId = document.getElementById('editDocId').value.trim();
+            const sport = document.getElementById('addSport').value.trim();
+            const country = document.getElementById('addCountry').value.trim();
+            const competition = document.getElementById('addCompetition').value.trim();
+            const file = document.getElementById('addFile').value.trim();
+
+            if (!sport || !country || !competition || !file) {
+                showAlert('adminAlert', 'All fields are required.', 'error');
+                return;
+            }
+
+            const isDuplicate = rawData.some(item => 
+                item.id !== docId &&
+                item.sport && item.sport.trim().toLowerCase() === sport.toLowerCase() &&
+                item.country && item.country.trim().toLowerCase() === country.toLowerCase() &&
+                item.competition && item.competition.trim().toLowerCase() === competition.toLowerCase()
+            );
+
+            if (isDuplicate) {
+                showAlert('adminAlert', 'A competition with this Sport, Country, and Name already exists.', 'error');
+                return;
+            }
+
+            const saveBtn = document.getElementById('saveCompBtn');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+
+            if (docId) {
+                db.collection('tableChecks').doc(docId).update({
+                    sport: sport,
+                    country: country,
+                    competition: competition,
+                    file: file
+                })
+                .then(() => {
+                    showAlert('adminAlert', 'Competition updated successfully!', 'success');
+                    setTimeout(() => {
+                        closeModal('adminModal');
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = 'Save Competition';
+                        fetchTableChecks();
+                    }, 1000);
+                })
+                .catch(err => {
+                    showAlert('adminAlert', 'Failed to update: ' + err.message, 'error');
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Save Competition';
+                });
+            } else {
+                db.collection('tableChecks').add({
+                    sport: sport,
+                    country: country,
+                    competition: competition,
+                    file: file,
+                    active: true,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                })
+                .then(() => {
+                    showAlert('adminAlert', 'Competition saved successfully!', 'success');
+                    setTimeout(() => {
+                        closeModal('adminModal');
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = 'Save Competition';
+                        fetchTableChecks();
+                    }, 1000);
+                })
+                .catch(err => {
+                    showAlert('adminAlert', 'Failed to save: ' + err.message, 'error');
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Save Competition';
+                });
+            }
+        }
+
+        function toggleActiveStatus(docId, currentActive) {
+            if (!requireLogin()) return;
+            if (currentUserRole !== 'ADMIN') return;
+            if (!confirm(`Are you sure you want to ${currentActive ? 'deactivate' : 'activate'} this competition?`)) return;
+
+            db.collection('tableChecks').doc(docId).update({
+                active: !currentActive
+            })
+            .then(() => {
+                fetchTableChecks();
+            })
+            .catch(err => {
+                alert("Failed to update status: " + err.message);
+            });
+        }
+
+        function deleteCompetition(docId) {
+            if (!requireLogin()) return;
+            if (currentUserRole !== 'ADMIN') return;
+            if (!confirm("Are you sure you want to permanently delete this competition?")) return;
+
+            db.collection('tableChecks').doc(docId).delete()
+                .then(() => {
+                    fetchTableChecks();
+                })
+                .catch(err => {
+                    alert("Failed to delete competition: " + err.message);
+                });
+        }
+
+        // Modal Helpers
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+            if (id === 'loginModal') showAlert('loginAlert', '', 'none');
+            if (id === 'adminModal') showAlert('adminAlert', '', 'none');
+        }
+
+        function showAlert(alertId, message, type) {
+            const alertBox = document.getElementById(alertId);
+            if (type === 'none') {
+                alertBox.className = 'alert-box';
+                alertBox.textContent = '';
+                return;
+            }
+            alertBox.className = `alert-box ${type}`;
+            alertBox.textContent = message;
+        }
+
+        // Sanitization Helpers
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function escapeQuotes(str) {
+            if (!str) return '';
+            return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>
