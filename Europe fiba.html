@@ -454,7 +454,7 @@
   </div>
 
   <div style="margin-top: 12px; display: flex; gap: 12px;">
-    <button style="font-size: 15px; padding: 10px 24px;" onclick="prepareMatches()">Review Player Matches</button>
+    <button style="font-size: 15px; padding: 10px 24px;" onclick="prepareMatchesWorkflow()">Review Player Matches</button>
     <button class="btn-secondary" style="font-size: 15px; padding: 10px 24px;" onclick="openToolGuideModal()">📘 Tool Guide</button>
   </div>
 </div>
@@ -505,7 +505,8 @@
     <h3 style="color: var(--navy-bg); margin-bottom: 4px;">3. Compare</h3>
     <ol style="margin-top: 4px; padding-left: 20px; margin-bottom: 0;">
       <li>Click Review Player Matches.</li>
-      <li>A Player Mapping dropdown popup will appear.</li>
+      <li>A Team Mapping popup will appear if teams are not yet mapped.</li>
+      <li>A Player Mapping dropdown popup will appear next.</li>
       <li>Review all player mappings carefully.</li>
       <li>Correct any incorrect mappings.</li>
       <li>Click Confirm Mapping.</li>
@@ -573,6 +574,42 @@
   </div>
 </div>
 
+<!-- Firebase SDK Imports -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDxfQ9dVawPNEqw_qnD24Ob7hXuwG48A5E",
+    authDomain: "basketball-player-databa-b7fbe.firebaseapp.com",
+    projectId: "basketball-player-databa-b7fbe",
+    storageBucket: "basketball-player-databa-b7fbe.firebasestorage.app",
+    messagingSenderId: "381408374288",
+    appId: "1:381408374288:web:3b49d6534e9f9ded5fe495"
+  };
+
+  // Initialize Firebase and Firestore globally
+  let app, db;
+  function initializeFirebase() {
+    if (!app) {
+      app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+    }
+    return db;
+  }
+
+  // Expose Firebase functions and objects globally so existing code can invoke them
+  window.firebaseAPI = {
+    initializeFirebase,
+    doc,
+    getDoc,
+    setDoc,
+    updateDoc,
+    increment,
+    serverTimestamp
+  };
+</script>
+
 <script>
 // ---------- Global State Variables ----------
 let headerGlobal = [];
@@ -583,6 +620,80 @@ let statCols = {};                  // indices for stats columns
 let jerseyIndexGlobal = -1;         // jersey column index (RS3 + official)
 let activeExpandedTargetId = null;  // tracks textarea source for maximize view
 let isScreenshotMode = false;       // Screenshot Mode state toggle
+
+// COMPETITION NAME
+let COMPETITION_NAME = "";
+let officialTeamsList = [];
+
+// ---------- Normalization Function ----------
+function normalizeName(name) {
+  if (!name) return "";
+  let n = String(name).replace('*','').toLowerCase();
+  n = n.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  // Remove apostrophes, dots, hyphens, and extra spaces
+  n = n.replace(/['\.\-]/g, "");
+  n = n.replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g," ").trim();
+  // Replace spaces with underscores
+  return n.replace(/\s+/g, "_");
+}
+
+// ---------- Firebase Helper Functions (Exact Structure) ----------
+function getFirestoreInstance() {
+  if (window.firebaseAPI && window.firebaseAPI.initializeFirebase) {
+    return window.firebaseAPI.initializeFirebase();
+  }
+  return null;
+}
+
+async function getPlayerMapping(playerKey) {
+  const db = getFirestoreInstance();
+  if (!db || !window.firebaseAPI) return null;
+
+  console.log("[Firebase] Searching:", playerKey);
+  try {
+    const docRef = window.firebaseAPI.doc(db, "playerMappings", "Official", "players", playerKey);
+    const docSnap = await window.firebaseAPI.getDoc(docRef);
+    if (docSnap.exists()) {
+      console.log("[Firebase] Mapping Found");
+      return docSnap.data();
+    }
+  } catch (err) {
+    console.error("Error loading player mapping:", err);
+  }
+  console.log("[Firebase] Mapping Not Found");
+  return null;
+}
+
+async function savePlayerMapping(rs3Name, officialName) {
+  const db = getFirestoreInstance();
+  if (!db || !window.firebaseAPI) return;
+
+  const playerKey = normalizeName(rs3Name);
+
+  try {
+    const docRef = window.firebaseAPI.doc(db, "playerMappings", "Official", "players", playerKey);
+    const existing = await getPlayerMapping(playerKey);
+
+    if (existing) {
+      await window.firebaseAPI.updateDoc(docRef, {
+        usageCount: window.firebaseAPI.increment(1),
+        updatedAt: window.firebaseAPI.serverTimestamp()
+      });
+    } else {
+      await window.firebaseAPI.setDoc(docRef, {
+        rs3Name: rs3Name,
+        officialName: officialName,
+        provider: "Official",
+        usageCount: 1,
+        createdAt: window.firebaseAPI.serverTimestamp(),
+        updatedAt: window.firebaseAPI.serverTimestamp()
+      });
+    }
+    console.log("[Firebase] Player Mapping Saved");
+  } catch (err) {
+    console.error("Error saving player mapping:", err);
+  }
+}
 
 // ---------- Tool Guide Modal Logic ----------
 function openToolGuideModal() {
@@ -675,7 +786,6 @@ function toggleScreenshotMode() {
     btn.classList.remove("btn-active");
   }
 
-  // Re-render subheaders (RS3 | Official vs R|O)
   const subHeaders = document.querySelectorAll(".th-sub");
   subHeaders.forEach(el => {
     el.textContent = isScreenshotMode ? "R|O" : "(RS3 | Official)";
@@ -903,6 +1013,21 @@ function isPlayerMappingValid(rs3Jersey, rs3Team, offJersey, offTeam) {
   return true;
 }
 
+function extractTeamNamesFromText(textInput) {
+  const names = new Set();
+  if (!textInput.trim()) return [];
+  const lines = textInput.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.length > 2 && !/^\d+$/.test(trimmed) && !/\d{1,2}:\d{2}/.test(trimmed)) {
+      if (isNaN(trimmed) && !/\d+\s*\/\s*\d+/.test(trimmed)) {
+        names.add(trimmed);
+      }
+    }
+  }
+  return Array.from(names);
+}
+
 function buildOfficialPlayers(inputA, inputB, header, jerseyIndex, teamIndex) {
   const sources = [
     { text: inputA, team: "A" },
@@ -911,8 +1036,18 @@ function buildOfficialPlayers(inputA, inputB, header, jerseyIndex, teamIndex) {
   const result = [];
   const colIndexByName = name => header.indexOf(name);
 
+  officialTeamsList = [];
+
   for (const src of sources) {
     if (!src.text.trim()) continue;
+    
+    const extracted = extractTeamNamesFromText(src.text);
+    if (extracted.length > 0) {
+      officialTeamsList.push({ key: src.team, name: extracted[0] });
+    } else {
+      officialTeamsList.push({ key: src.team, name: "Team " + src.team });
+    }
+
     const blocks = splitPlayers(src.text);
     for (const block of blocks) {
       const p = parseFibaPlayer(block);
@@ -967,8 +1102,8 @@ function normalizeValue(v) {
   return "S:" + s.toLowerCase();
 }
 
-// ---------- PREPARE MATCH TABLE ----------
-function prepareMatches() {
+// ---------- WORKFLOW CONTROLLER & FIREBASE LOOKUP LOGIC ----------
+async function prepareMatchesWorkflow() {
   const myInput = document.getElementById("myData").value;
   const oA = document.getElementById("officialA").value;
   const oB = document.getElementById("officialB").value;
@@ -993,7 +1128,6 @@ function prepareMatches() {
   const idxPlayer = headerGlobal.indexOf("Player name");
 
   if (jerseyIndexGlobal === -1 && headerGlobal.length > 1) jerseyIndexGlobal = 1;
-
   myRowsGlobal = myTable.slice(1);
 
   if (jerseyIndexGlobal >= 0) {
@@ -1058,6 +1192,8 @@ function prepareMatches() {
   const tb = document.getElementById("matchTbody");
   tb.innerHTML = "";
 
+  let allPlayersMapped = true;
+
   for (let r = 0; r < meta.length; r++) {
     const origIndex = meta[r].originalIndex;
     const myRow = meta[r].row || [];
@@ -1072,6 +1208,33 @@ function prepareMatches() {
       myShirt,
       officialIndex: null
     };
+
+    // 1. Generate playerKey
+    const playerKey = normalizeName(myName);
+
+    // 2. Read from global Firebase path: playerMappings/Official/players/playerKey
+    const mappingRecord = await getPlayerMapping(playerKey);
+
+    let assignedOfficialIndex = null;
+    if (mappingRecord && mappingRecord.officialName) {
+      // 3. If mapping exists, automatically find matching official player in officialPlayersGlobal
+      const officialNameTarget = normalizeName(mappingRecord.officialName);
+      for (let oi = 0; oi < officialPlayersGlobal.length; oi++) {
+        const op = officialPlayersGlobal[oi];
+        if (normalizeName(op.name) === officialNameTarget) {
+          assignedOfficialIndex = oi;
+          console.log("[Firebase] Auto Matched");
+          break;
+        }
+      }
+    }
+
+    if (assignedOfficialIndex !== null) {
+      // 4. Automatically set matchesGlobal[rowIndex].officialIndex
+      matchesGlobal[r].officialIndex = assignedOfficialIndex;
+    } else {
+      allPlayersMapped = false;
+    }
 
     const tr = document.createElement("tr");
     tr.id = "match_row_" + r;
@@ -1089,23 +1252,22 @@ function prepareMatches() {
     tdName.textContent = myName;
     tr.appendChild(tdName);
 
-    // FIBA Team dropdown
     const tdFibaTeam = document.createElement("td");
     const teamSel = document.createElement("select");
     teamSel.id = "fiba_team_sel_" + r;
     teamSel.style.width = "60px";
-    ["", "A", "B"].forEach(val => {
+    
+    ["", myTeam].filter((v, i, arr) => arr.indexOf(v) === i).forEach(val => {
       const opt = document.createElement("option");
       opt.value = val;
       opt.textContent = val === "" ? "—" : val;
       teamSel.appendChild(opt);
     });
-    if (myTeam === "A" || myTeam === "B") teamSel.value = myTeam;
-    teamSel.onchange = () => populateFibaPlayerDropdown(r);
+    teamSel.value = myTeam;
+    teamSel.disabled = true;
     tdFibaTeam.appendChild(teamSel);
     tr.appendChild(tdFibaTeam);
 
-    // FIBA player dropdown
     const tdSel = document.createElement("td");
     tdSel.id = `fiba_player_cell_${r}`;
     const sel = document.createElement("select");
@@ -1113,7 +1275,6 @@ function prepareMatches() {
     tdSel.appendChild(sel);
     tr.appendChild(tdSel);
 
-    // Alert cell
     const tdAlert = document.createElement("td");
     tdAlert.id = `validation_alert_${r}`;
     tr.appendChild(tdAlert);
@@ -1136,13 +1297,20 @@ function prepareMatches() {
     sel.onchange = () => updateMatchRowStats(r);
     tb.appendChild(tr);
 
-    populateFibaPlayerDropdown(r);
+    // 5. Preselect dropdown
+    populateFibaPlayerDropdown(r, assignedOfficialIndex);
   }
 
-  openMatchModal();
+  // 6. If all players are mapped, skip popup entirely and run comparison
+  if (allPlayersMapped && myRowsGlobal.length > 0) {
+    console.log("[Firebase] All players mapped. Skipping popup and running comparison.");
+    runComparisonWithMatches();
+  } else {
+    openMatchModal();
+  }
 }
 
-function populateFibaPlayerDropdown(rowIndex) {
+function populateFibaPlayerDropdown(rowIndex, preselectedOfficialIdx = null) {
   const meta = matchesGlobal[rowIndex];
   const teamSel = document.getElementById("fiba_team_sel_" + rowIndex);
   const wantedTeam = teamSel ? teamSel.value : "";
@@ -1186,8 +1354,11 @@ function populateFibaPlayerDropdown(rowIndex) {
     sel.appendChild(opt);
   });
 
-  // STRICT RULE: EVERY DROPDOWN DEFAULTS TO NONE ("-1")
-  sel.value = "-1";
+  if (preselectedOfficialIdx !== null && preselectedOfficialIdx !== undefined) {
+    sel.value = String(preselectedOfficialIdx);
+  } else {
+    sel.value = "-1";
+  }
 
   updateMatchRowStats(rowIndex);
 }
@@ -1199,6 +1370,8 @@ function validateAndHighlightRow(r) {
   const fibaCell = document.getElementById(`fiba_player_cell_${r}`);
   const alertCell = document.getElementById(`validation_alert_${r}`);
   const sel = document.getElementById("match_sel_" + r);
+
+  if (!tr || !rs3Cell || !fibaCell || !alertCell || !sel) return;
 
   tr.classList.remove("row-invalid");
   rs3Cell.classList.remove("cell-invalid");
@@ -1259,7 +1432,7 @@ function refreshDuplicateHighlight() {
   });
 
   if (info.hasDup) {
-    btnConfirm.disabled = true;
+    if (btnConfirm) btnConfirm.disabled = true;
     let dupList = Object.entries(info.dupPlayers).map(([idx, name]) => 
       `<li>Official player <b>"${name}"</b> selected ${info.counts[idx]} times.</li>`
     ).join("");
@@ -1271,7 +1444,7 @@ function refreshDuplicateHighlight() {
     `;
     alertEl.style.display = "block";
   } else {
-    btnConfirm.disabled = false;
+    if (btnConfirm) btnConfirm.disabled = false;
     alertEl.style.display = "none";
   }
 }
@@ -1319,15 +1492,23 @@ function closeMatchModal() {
   document.getElementById("matchModal").style.display = "none";
 }
 
-function confirmMatchesAndCompare() {
+async function confirmMatchesAndCompare() {
   const info = getDuplicateSelectionInfo();
   if (info.hasDup) return;
+
+  for (const m of matchesGlobal) {
+    if (m.officialIndex != null) {
+      const officialPlayer = officialPlayersGlobal[m.officialIndex];
+      if (officialPlayer) {
+        await savePlayerMapping(m.myName, officialPlayer.name);
+      }
+    }
+  }
 
   closeMatchModal();
   runComparisonWithMatches();
 }
 
-// Format visible RS3 | Official comparison box
 function formatCompBox(valA, valB, isUnmapped, isPlayerName = false) {
   const vA = (valA !== undefined && valA !== null && String(valA).trim() !== "") ? String(valA).trim() : "—";
   const vB = (valB !== undefined && valB !== null && String(valB).trim() !== "") ? String(valB).trim() : "—";
@@ -1491,7 +1672,6 @@ function runComparisonWithMatches() {
     });
   }
 
-  // Summary Cards Panel
   let summaryHtml = `
     <div class="summary-panel">
       <div class="summary-card"><div class="num">${maxRows}</div><div class="label">Total Players</div></div>
@@ -1504,7 +1684,6 @@ function runComparisonWithMatches() {
 
   const subText = isScreenshotMode ? "R|O" : "(RS3 | Official)";
 
-  // Comparison Table with Sticky Key Columns
   let tableHtml = `
     <div id="compTableContainer" class="card" style="padding:0; overflow:hidden;">
       <div class="table-container">
