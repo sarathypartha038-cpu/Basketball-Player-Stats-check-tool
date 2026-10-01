@@ -1,0 +1,1665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Europe - EuroLeague / EuroCup Boxscore Comparison Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    :root {
+      --navy-bg: #17233A;
+      --navy-card: #1e2d4a;
+      --light-bg: #f4f6f9;
+      --border-color: #cbd5e1;
+      --match-green-bg: #e6f4ea;
+      --match-green-text: #137333;
+      --mismatch-red-bg: #fce8e6;
+      --mismatch-red-text: #c5221f;
+      --warning-orange-bg: #fef7e0;
+      --warning-orange-text: #b06000;
+      --primary-blue: #1a73e8;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Inter, Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: var(--light-bg);
+      color: #333;
+    }
+
+    .dashboard-header {
+      background: var(--navy-bg);
+      color: #fff;
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .dashboard-header h2 { margin: 0 0 6px 0; font-size: 22px; font-weight: 600; }
+    .dashboard-header p { margin: 0; font-size: 13px; color: #cbd5e1; }
+
+    .sticky-inputs-container {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--light-bg);
+      padding-bottom: 10px;
+      margin-bottom: 10px;
+      border-bottom: 2px solid var(--border-color);
+      transition: all 0.3s ease;
+    }
+
+    .input-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+      margin-top: 10px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 14px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+      display: flex;
+      flex-direction: column;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .card-header h3 { margin: 0; font-size: 15px; color: var(--navy-bg); }
+
+    textarea {
+      width: 100%;
+      min-height: 350px;
+      resize: vertical;
+      font-family: Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre;
+      overflow: auto;
+      padding: 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+    }
+    textarea:focus { outline: none; border-color: var(--primary-blue); }
+
+    .line-counter {
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 600;
+      margin-top: 6px;
+    }
+
+    button {
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background-color: var(--primary-blue);
+      color: white;
+      transition: background-color 0.2s;
+    }
+    button:hover { background-color: #1557b0; }
+    button:disabled { background-color: #94a3b8; cursor: not-allowed; }
+    .btn-secondary { background-color: #64748b; }
+    .btn-secondary:hover { background-color: #475569; }
+    .btn-icon { padding: 4px 8px; font-size: 13px; }
+    .btn-active { background-color: #0d9488 !important; }
+
+    .qa-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      background: #fff;
+      padding: 10px 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    .qa-toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .checkbox-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--navy-bg);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .summary-panel {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .summary-card {
+      background: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 12px 16px;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .summary-card .num { font-size: 24px; font-weight: 700; color: var(--navy-bg); }
+    .summary-card .label { font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; margin-top: 2px; }
+
+    .table-container {
+      overflow-x: auto;
+      max-height: 75vh;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background: white;
+    }
+    table {
+      border-collapse: separate;
+      border-spacing: 0;
+      width: 100%;
+      font-size: 12px;
+    }
+    th, td {
+      border-right: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+      padding: 4px 6px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    th {
+      background: var(--navy-bg);
+      color: #fff;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      padding: 6px 8px;
+    }
+    .th-sub {
+      display: block;
+      font-size: 9px;
+      color: #94a3b8;
+      font-weight: normal;
+      text-transform: none;
+      margin-top: 2px;
+    }
+
+    .comp-box {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      background: #ffffff;
+      font-weight: 500;
+      font-family: monospace;
+      min-width: 55px;
+    }
+    .cell-match .comp-box {
+      background-color: var(--match-green-bg);
+      color: var(--match-green-text);
+      border-color: #b7e1cd;
+    }
+    .cell-mismatch .comp-box {
+      background-color: var(--mismatch-red-bg);
+      color: var(--mismatch-red-text);
+      border-color: #f5c6cb;
+      font-weight: bold;
+    }
+    .cell-unmapped .comp-box {
+      background-color: var(--warning-orange-bg);
+      color: var(--warning-orange-text);
+      border-color: #ffeeba;
+    }
+
+    .sticky-col-1 { position: sticky; left: 0; z-index: 20; background: inherit; }
+    .sticky-col-2 { position: sticky; left: 55px; z-index: 20; background: inherit; }
+    .sticky-col-3 { position: sticky; left: 110px; z-index: 20; background: inherit; }
+    th.sticky-col-1, th.sticky-col-2, th.sticky-col-3 { z-index: 30; background: var(--navy-bg); }
+
+    tr.row-match td { background-color: #f8fdf9; }
+    tr.row-mismatch td { background-color: #fff8f8; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-match { background-color: var(--match-green-bg); color: var(--match-green-text); }
+    .badge-stat-mismatch { background-color: var(--mismatch-red-bg); color: var(--mismatch-red-text); }
+    .badge-player-mismatch { background-color: #fef08a; color: #854d0e; }
+    .badge-not-mapped { background-color: var(--warning-orange-bg); color: var(--warning-orange-text); }
+
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(2px);
+      display: none; z-index: 1000;
+    }
+    .modal {
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: #fff; padding: 0;
+      border-radius: 8px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+      width: 96%; max-width: 1450px;
+      max-height: 90vh; display: none;
+      z-index: 1001; flex-direction: column;
+      overflow: hidden;
+    }
+    .modal-header {
+      background: var(--navy-bg); color: white;
+      padding: 12px 20px; display: flex;
+      justify-content: space-between; align-items: center;
+      font-weight: 600; font-size: 16px;
+    }
+    .modal-close { cursor: pointer; font-size: 20px; line-height: 1; }
+    .modal-content { padding: 16px; overflow: auto; flex: 1; }
+    .modal-footer {
+      padding: 12px 20px; border-top: 1px solid var(--border-color);
+      display: flex; justify-content: space-between;
+      align-items: center; background: #f8fafc;
+    }
+
+    .expand-modal {
+      width: 90vw;
+      height: 80vh;
+      max-width: 90vw;
+      max-height: 80vh;
+    }
+    .expand-textarea {
+      width: 100%;
+      height: 100%;
+      min-height: calc(80vh - 120px);
+      font-family: Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre;
+    }
+
+    .tool-guide-modal {
+      max-width: 700px;
+    }
+    .tool-guide-content h4 {
+      color: var(--navy-bg);
+      margin-top: 16px;
+      margin-bottom: 8px;
+      font-size: 15px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 4px;
+    }
+    .tool-guide-content h4:first-child {
+      margin-top: 0;
+    }
+    .tool-guide-content ol {
+      margin: 0 0 16px 20px;
+      padding: 0;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .tool-guide-content li {
+      margin-bottom: 6px;
+    }
+
+    .dup-alert-banner {
+      display: none;
+      background-color: var(--mismatch-red-bg);
+      color: var(--mismatch-red-text);
+      border: 2px solid var(--mismatch-red-text);
+      border-radius: 6px;
+      padding: 12px 16px; margin-bottom: 12px;
+      font-size: 13px; font-weight: 700;
+    }
+    
+    #matchTable th, #matchTable td { text-align: left; font-size: 11px; }
+    #matchTable th { position: sticky; top: 0; background: #f1f5f9; color: var(--navy-bg); }
+    #matchTable select { width: 260px; font-size: 12px; padding: 3px; }
+
+    tr.row-invalid td { background-color: var(--mismatch-red-bg) !important; color: var(--mismatch-red-text) !important; }
+    td.cell-invalid { background-color: #f8d7da !important; color: #721c24 !important; font-weight: bold; }
+    
+    .critical-mapping-card {
+      background-color: var(--mismatch-red-bg);
+      border: 1.5px solid var(--mismatch-red-text);
+      color: var(--mismatch-red-text);
+      padding: 3px 6px; border-radius: 4px;
+      font-weight: bold; font-size: 11px;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+
+    body.mode-screenshot {
+      background: #ffffff !important;
+      padding: 10px !important;
+    }
+    body.mode-screenshot .dashboard-header,
+    body.mode-screenshot .sticky-inputs-container,
+    body.mode-screenshot .summary-panel {
+      display: none !important;
+    }
+    body.mode-screenshot .table-container {
+      max-height: none !important;
+      border: 1px solid #94a3b8 !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+    }
+    body.mode-screenshot table { font-size: 11px !important; }
+    body.mode-screenshot th { padding: 3px 4px !important; font-size: 10px !important; background: #0f172a !important; }
+    body.mode-screenshot th .th-sub { font-size: 8px !important; }
+    body.mode-screenshot td { padding: 1px 2px !important; height: 24px !important; font-size: 11px !important; }
+    body.mode-screenshot .comp-box { padding: 1px 3px !important; min-width: 42px !important; font-size: 10.5px !important; border-radius: 2px !important; }
+    body.mode-screenshot .badge { padding: 1px 4px !important; font-size: 8.5px !important; border-radius: 4px !important; }
+
+    @media print {
+      .dashboard-header, .sticky-inputs-container, .qa-toolbar, .summary-panel, .overlay, .modal { display: none !important; }
+      body { background: white !important; padding: 0 !important; }
+      .table-container { max-height: none !important; border: 1px solid #000 !important; }
+      table { border-collapse: collapse !important; }
+      th, td { border: 1px solid #000 !important; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="dashboard-header">
+  <div>
+    <h2>Europe - EuroLeague / EuroCup Boxscore Comparison Dashboard</h2>
+    <p>Dynamic Header-Based Column Mapping for Official Feed Alignment.</p>
+  </div>
+  <button id="toggleInputBtn" class="btn-secondary" onclick="toggleInputs()">Hide Inputs</button>
+</div>
+
+<div id="stickyInputs" class="sticky-inputs-container">
+  <div class="input-grid">
+    <div class="card">
+      <div class="card-header">
+        <h3>RS3 Data (Excel)</h3>
+        <div>
+          <button class="btn-secondary btn-icon" title="Maximize View" onclick="openExpandModal('myData', 'RS3 Data')">⛶</button>
+          <button class="btn-secondary btn-icon" onclick="clearText('myData')">Clear</button>
+        </div>
+      </div>
+      <textarea id="myData" placeholder="Paste your RS3 table including header and all players" oninput="updateCounters()"></textarea>
+      <div id="counterMyData" class="line-counter">0 lines loaded</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>Official Team A (Europe - EuroLeague / EuroCup)</h3>
+        <div>
+          <button class="btn-secondary btn-icon" title="Maximize View" onclick="openExpandModal('officialA', 'Official Team A')">⛶</button>
+          <button class="btn-secondary btn-icon" onclick="clearText('officialA')">Clear</button>
+        </div>
+      </div>
+      <textarea id="officialA" placeholder="Paste EuroLeague/EuroCup Team A boxscore text here" oninput="updateCounters()"></textarea>
+      <div id="counterOfficialA" class="line-counter">0 players loaded</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>Official Team B (Europe - EuroLeague / EuroCup)</h3>
+        <div>
+          <button class="btn-secondary btn-icon" title="Maximize View" onclick="openExpandModal('officialB', 'Official Team B')">⛶</button>
+          <button class="btn-secondary btn-icon" onclick="clearText('officialB')">Clear</button>
+        </div>
+      </div>
+      <textarea id="officialB" placeholder="Paste EuroLeague/EuroCup Team B boxscore text here" oninput="updateCounters()"></textarea>
+      <div id="counterOfficialB" class="line-counter">0 players loaded</div>
+    </div>
+  </div>
+
+  <div style="margin-top: 12px; display: flex; gap: 12px; align-items: center;">
+    <button style="font-size: 15px; padding: 10px 24px;" onclick="prepareMatches()">Review Player Matches</button>
+    <button style="font-size: 15px; padding: 10px 24px;" onclick="openToolGuideModal()">📖 Tool Guide</button>
+  </div>
+</div>
+
+<div id="qaToolbar" class="qa-toolbar" style="display: none;">
+  <div class="qa-toolbar-group">
+    <button id="btnScreenshotMode" class="btn-secondary" onclick="toggleScreenshotMode()">📷 Europe - EuroLeague / EuroCup Screenshot View: OFF</button>
+    <label class="checkbox-label">
+      <input type="checkbox" id="chkMismatchesOnly" onchange="filterMismatchesOnly()">
+      ☑ Show Mismatches Only
+    </label>
+  </div>
+  <div class="qa-toolbar-group">
+    <button class="btn-secondary" onclick="exportTablePNG()">📸 Export PNG</button>
+    <button class="btn-secondary" onclick="window.print()">🖨 Print View</button>
+  </div>
+</div>
+
+<div id="resultContainer"></div>
+
+<div id="overlay" class="overlay"></div>
+
+<!-- Tool Guide Modal -->
+<div id="toolGuideModal" class="modal tool-guide-modal">
+  <div class="modal-header">
+    <span>Tool Guide</span>
+    <span class="modal-close" onclick="closeToolGuideModal()">✖</span>
+  </div>
+  <div class="modal-content tool-guide-content">
+    <h4>RS3 Data</h4>
+    <ol>
+      <li>Copy the official data from the Player Stats page.</li>
+      <li>Paste the data into Online Excel.</li>
+      <li>Perform the necessary formatting changes to achieve standard alignment.</li>
+      <li>Copy the formatted data.</li>
+      <li>Paste it into the RS3 Data (Excel) section.</li>
+    </ol>
+
+    <h4>Official Data</h4>
+    <ol>
+      <li>Copy Official Team A data with headers and paste it into Official Team A.</li>
+      <li>Copy Official Team B data with headers and paste it into Official Team B.</li>
+    </ol>
+
+    <h4>Compare</h4>
+    <ol>
+      <li>Click Review Player Matches.</li>
+      <li>A Player Mapping dropdown popup will appear.</li>
+      <li>Review all player mappings carefully.</li>
+      <li>Correct any incorrect mappings.</li>
+      <li>Click Confirm Mapping.</li>
+      <li>The comparison results will be displayed.</li>
+    </ol>
+  </div>
+  <div class="modal-footer">
+    <div style="font-size: 12px; color: #64748b;">Follow these steps sequentially to ensure accurate boxscore comparison.</div>
+    <button onclick="closeToolGuideModal()">Close</button>
+  </div>
+</div>
+
+<div id="expandModal" class="modal expand-modal">
+  <div class="modal-header">
+    <span id="expandModalTitle">Review Raw Data</span>
+    <span class="modal-close" onclick="closeExpandModal()">✖</span>
+  </div>
+  <div class="modal-content">
+    <textarea id="expandTextarea" class="expand-textarea" oninput="syncExpandedData()"></textarea>
+  </div>
+  <div class="modal-footer">
+    <div id="expandCounter" class="line-counter">0 lines</div>
+    <button onclick="closeExpandModal()">Done & Close</button>
+  </div>
+</div>
+
+<div id="matchModal" class="modal">
+  <div class="modal-header">
+    <span id="matchTitle">Europe - EuroLeague / EuroCup Player Matching</span>
+    <span class="modal-close" onclick="closeMatchModal()">✖</span>
+  </div>
+
+  <div class="modal-content">
+    <div id="dupAlert" class="dup-alert-banner"></div>
+
+    <table id="matchTable">
+      <thead>
+        <tr id="matchHeadRow">
+          <th>RS3 Team</th>
+          <th>RS3 #</th>
+          <th>RS3 Player</th>
+          <th>Official Team</th>
+          <th>Official Player (Select Match)</th>
+          <th>Validation / Alert</th>
+          <th>MIN</th><th>SEC</th><th>FGM</th><th>FGA</th><th>TP</th>
+          <th>2PIN</th><th>2PT</th><th>3PIN</th><th>3PT</th><th>FTIN</th>
+          <th>FTT</th><th>OREB</th><th>DREB</th><th>TREB</th><th>ASS</th>
+          <th>TO</th><th>ST</th><th>BLK</th><th>BL_R</th><th>PF</th><th>PF_R</th><th>+/-</th>
+        </tr>
+      </thead>
+      <tbody id="matchTbody"></tbody>
+    </table>
+  </div>
+  
+  <div class="modal-footer">
+    <div id="matchInfo" style="font-size: 12px; color: #64748b;">
+      Select corresponding Official players manually. ⭐ indicates recommendation (not auto-selected).
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn-secondary" onclick="closeMatchModal()">Cancel</button>
+      <button id="btnConfirmCompare" onclick="confirmMatchesAndCompare()">Confirm & Compare</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase Integration Module -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDxfQ9dVawPNEqw_qnD24Ob7hXuwG48A5E",
+    authDomain: "basketball-player-databa-b7fbe.firebaseapp.com",
+    projectId: "basketball-player-databa-b7fbe",
+    storageBucket: "basketball-player-databa-b7fbe.firebasestorage.app",
+    messagingSenderId: "381408374288",
+    appId: "1:381408374288:web:3b49d6534e9f9ded5fe495"
+  };
+
+  let db = null;
+
+  function initializeFirebase() {
+    try {
+      const app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+    } catch (error) {
+      console.error("[Firebase] Initialization error:", error);
+    }
+  }
+
+  function normalizeName(name) {
+    if (!name) return "";
+    let s = String(name).toLowerCase();
+    s = s.replace(/[\.\'\-]/g, "");
+    s = s.replace(/\s+/g, "_").trim();
+    return s;
+  }
+
+  async function getPlayerMapping(playerKey) {
+    if (!db) return null;
+    try {
+      console.log("[Firebase] Searching:", playerKey);
+      const docRef = doc(db, "playerMappings", "Official", "players", playerKey);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        console.log("[Firebase] Mapping Found:", docSnap.data().rs3Name || playerKey);
+        return docSnap.data();
+      } else {
+        console.log("[Firebase] Mapping Not Found:", playerKey);
+        return null;
+      }
+    } catch (error) {
+      console.error("[Firebase] Error getting player mapping:", error);
+      return null;
+    }
+  }
+
+  async function savePlayerMapping(rs3Name, officialName, team) {
+    if (!db) return;
+    try {
+      const playerKey = normalizeName(rs3Name);
+      console.log("[Firebase] Saving:", rs3Name);
+      const docRef = doc(db, "playerMappings", "Official", "players", playerKey);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        await updateDoc(docRef, {
+          officialName: officialName,
+          team: team,
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        await setDoc(docRef, {
+          rs3Name: rs3Name,
+          officialName: officialName,
+          provider: "Official",
+          team: team,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          usageCount: 1
+        });
+      }
+      console.log("[Firebase] Saved Successfully:", rs3Name);
+    } catch (error) {
+      console.error("[Firebase] Error saving player mapping:", error);
+    }
+  }
+
+  async function incrementUsageCount(playerKey) {
+    if (!db) return;
+    try {
+      const docRef = doc(db, "playerMappings", "Official", "players", playerKey);
+      await updateDoc(docRef, {
+        usageCount: increment(1),
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("[Firebase] Error incrementing usage count:", error);
+    }
+  }
+
+  initializeFirebase();
+
+  window.initializeFirebase = initializeFirebase;
+  window.normalizeName = normalizeName;
+  window.getPlayerMapping = getPlayerMapping;
+  window.savePlayerMapping = savePlayerMapping;
+  window.incrementUsageCount = incrementUsageCount;
+</script>
+
+<script>
+let headerGlobal = [];
+let myRowsGlobal = [];              
+let officialPlayersGlobal = [];     
+let matchesGlobal = [];             
+let jerseyIndexGlobal = -1;         
+let activeExpandedTargetId = null;  
+let isScreenshotMode = false;       
+
+const REQUIRED_FIELD_ORDER = [
+  "TEAM", "SHIRT #", "PLAYER NAME", "MIN", "SEC", "FGM", "FGA", "TP",
+  "2PIN", "2PT", "3PIN", "3PT", "FTIN", "FTT", "OREB", "DREB", "TREB",
+  "ASS", "TO", "ST", "BLK", "BL_R", "PF", "PF_R", "+/-"
+];
+
+function toggleInputs() {
+  const container = document.getElementById("stickyInputs");
+  const btn = document.getElementById("toggleInputBtn");
+  if (container.style.display === "none") {
+    container.style.display = "block";
+    btn.textContent = "Hide Inputs";
+  } else {
+    container.style.display = "none";
+    btn.textContent = "Show Inputs";
+  }
+}
+
+function updateCounters() {
+  const myDataVal = document.getElementById("myData").value;
+  const myLines = myDataVal ? myDataVal.trim().split(/\r?\n/).filter(l => l.trim().length > 0).length : 0;
+  document.getElementById("counterMyData").textContent = `${myLines} lines loaded`;
+
+  const offAVal = document.getElementById("officialA").value;
+  const offALines = offAVal ? offAVal.trim().split(/\r?\n/).filter(l => l.trim().length > 0).length : 0;
+  document.getElementById("counterOfficialA").textContent = `${offALines} lines loaded`;
+
+  const offBVal = document.getElementById("officialB").value;
+  const offBLines = offBVal ? offBVal.trim().split(/\r?\n/).filter(l => l.trim().length > 0).length : 0;
+  document.getElementById("counterOfficialB").textContent = `${offBLines} lines loaded`;
+}
+
+function openToolGuideModal() {
+  document.getElementById("overlay").style.display = "block";
+  document.getElementById("toolGuideModal").style.display = "flex";
+}
+
+function closeToolGuideModal() {
+  document.getElementById("overlay").style.display = "none";
+  document.getElementById("toolGuideModal").style.display = "none";
+}
+
+window.addEventListener("click", function(event) {
+  const overlay = document.getElementById("overlay");
+  if (event.target === overlay) {
+    closeToolGuideModal();
+    closeExpandModal();
+    closeMatchModal();
+  }
+});
+
+window.addEventListener("keydown", function(event) {
+  if (event.key === "Escape") {
+    closeToolGuideModal();
+    closeExpandModal();
+    closeMatchModal();
+  }
+});
+
+function openExpandModal(targetId, title) {
+  activeExpandedTargetId = targetId;
+  const src = document.getElementById(targetId);
+  const expText = document.getElementById("expandTextarea");
+  
+  document.getElementById("expandModalTitle").textContent = "Review Raw Data – " + title;
+  expText.value = src.value;
+  
+  document.getElementById("overlay").style.display = "block";
+  document.getElementById("expandModal").style.display = "flex";
+  syncExpandedData();
+}
+
+function syncExpandedData() {
+  if (!activeExpandedTargetId) return;
+  const expText = document.getElementById("expandTextarea");
+  const src = document.getElementById(activeExpandedTargetId);
+  src.value = expText.value;
+  
+  const lineCount = expText.value ? expText.value.split(/\r?\n/).length : 0;
+  document.getElementById("expandCounter").textContent = `${lineCount} total lines`;
+  updateCounters();
+}
+
+function closeExpandModal() {
+  document.getElementById("overlay").style.display = "none";
+  document.getElementById("expandModal").style.display = "none";
+  activeExpandedTargetId = null;
+}
+
+function clearText(id) {
+  const el = document.getElementById(id);
+  if (el) el.value = "";
+  updateCounters();
+  document.getElementById("resultContainer").innerHTML = "";
+  document.getElementById("qaToolbar").style.display = "none";
+}
+
+function toggleScreenshotMode() {
+  isScreenshotMode = !isScreenshotMode;
+  const btn = document.getElementById("btnScreenshotMode");
+  
+  if (isScreenshotMode) {
+    document.body.classList.add("mode-screenshot");
+    btn.textContent = "📷 Europe - EuroLeague / EuroCup Screenshot View: ON";
+    btn.classList.add("btn-active");
+  } else {
+    document.body.classList.remove("mode-screenshot");
+    btn.textContent = "📷 Europe - EuroLeague / EuroCup Screenshot View: OFF";
+    btn.classList.remove("btn-active");
+  }
+}
+
+function filterMismatchesOnly() {
+  const showOnlyMismatches = document.getElementById("chkMismatchesOnly").checked;
+  const rows = document.querySelectorAll("#compTableBody tr");
+
+  rows.forEach(tr => {
+    const isMatch = tr.classList.contains("row-match");
+    if (showOnlyMismatches && isMatch) {
+      tr.style.display = "none";
+    } else {
+      tr.style.display = "";
+    }
+  });
+}
+
+function exportTablePNG() {
+  const target = document.getElementById("compTableContainer");
+  if (!target) return;
+
+  html2canvas(target, {
+    scale: 2,
+    backgroundColor: "#ffffff",
+    logging: false
+  }).then(canvas => {
+    const link = document.createElement("a");
+    link.download = "Europe_EuroLeague_EuroCup_Comparison_Report.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  });
+}
+
+function parseMyTable(input) {
+  if (!input.trim()) return [];
+  return input.trim().split(/\r?\n/).map(line =>
+    line.trim().split(/\t|,|\s{2,}/).map(cell => cell.trim())
+  );
+}
+
+function toInt(val) {
+  if (val == null) return 0;
+  let v = String(val).replace(/[()%]/g, '').replace('+','').trim();
+  if (v === "" || v === "-") return 0;
+  const n = parseInt(v, 10);
+  return isNaN(n) ? 0 : n;
+}
+
+function parseMadeAtt(str) {
+  if (!str) return [0,0];
+  const m = String(str).match(/(\d+)\s*\/\s*(\d+)/);
+  if (!m) return [0,0];
+  return [parseInt(m[1],10)||0, parseInt(m[2],10)||0];
+}
+
+function findIndex(lines, predicate) {
+  for (let i = 0; i < lines.length; i++) if (predicate(lines[i])) return i;
+  return -1;
+}
+
+function getSectionRows(lines, labelPredicate, skipLines, rowCount) {
+  const idx = findIndex(lines, labelPredicate);
+  if (idx < 0) return [];
+  const start = idx + skipLines;
+  return lines.slice(start, start + rowCount);
+}
+
+function parseEuroTeam(text, teamLetter) {
+  const result = [];
+  if (!text || !text.trim()) return result;
+
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l !== "");
+
+  const pIdx = findIndex(lines, l => /^player$/i.test(l));
+  if (pIdx < 0) return result;
+
+  const players = [];
+  let i = pIdx + 1;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^team$/i.test(line) || /^team total$/i.test(line) || /^min\b/i.test(line)) break;
+    if (/^\d+$/.test(line)) {
+      const jersey = line;
+      let name = (lines[i+1] || "");
+      i += 2;
+      if (i < lines.length && lines[i] === "*") i++;
+      players.push({ jersey, name });
+      continue;
+    }
+    i++;
+  }
+  const N = players.length;
+  if (N === 0) return result;
+
+  const minRows = getSectionRows(lines, l => /^min\b/i.test(l), 1, N);
+  const mins = new Array(N).fill("0:00");
+  const pts = new Array(N).fill(0);
+  for (let r = 0; r < N; r++) {
+    const parts = (minRows[r] || "").split(/\s+/);
+    if (parts[0]) mins[r] = parts[0];
+    if (parts[1]) pts[r] = toInt(parts[1]);
+  }
+
+  const fg2Rows = getSectionRows(lines, l => /^2fg\b/i.test(l), 2, N);
+  const fg3Rows = getSectionRows(lines, l => /^3fg\b/i.test(l), 2, N);
+  const ftRows  = getSectionRows(lines, l => /^ft\b/i.test(l),  2, N);
+
+  const twoM = new Array(N).fill(0), twoA = new Array(N).fill(0);
+  const threeM = new Array(N).fill(0), threeA = new Array(N).fill(0);
+  const ftM = new Array(N).fill(0), ftA = new Array(N).fill(0);
+
+  for (let r = 0; r < N; r++) {
+    if (fg2Rows[r]) {
+      const parts = fg2Rows[r].split(/\s+/);
+      const [m,a] = parseMadeAtt(parts[0]);
+      twoM[r] = m; twoA[r] = a;
+    }
+    if (fg3Rows[r]) {
+      const parts = fg3Rows[r].split(/\s+/);
+      const [m,a] = parseMadeAtt(parts[0]);
+      threeM[r] = m; threeA[r] = a;
+    }
+    if (ftRows[r]) {
+      const parts = ftRows[r].split(/\s+/);
+      const [m,a] = parseMadeAtt(parts[0]);
+      ftM[r] = m; ftA[r] = a;
+    }
+  }
+
+  const rebRows = getSectionRows(lines, l => /^rebounds$/i.test(l), 2, N);
+  const oreb = new Array(N).fill(0),
+        dreb = new Array(N).fill(0),
+        treb = new Array(N).fill(0);
+  for (let r = 0; r < N; r++) {
+    const parts = (rebRows[r] || "").split(/\s+/);
+    oreb[r] = toInt(parts[0]);
+    dreb[r] = toInt(parts[1]);
+    treb[r] = toInt(parts[2]);
+  }
+
+  const astRows = getSectionRows(lines, l => /^ast\b/i.test(l), 1, N);
+  const ast = new Array(N).fill(0),
+        stl = new Array(N).fill(0),
+        to  = new Array(N).fill(0);
+  for (let r = 0; r < N; r++) {
+    const parts = (astRows[r] || "").split(/\s+/);
+    ast[r] = toInt(parts[0]);
+    stl[r] = toInt(parts[1]);
+    to[r]  = toInt(parts[2]);
+  }
+
+  const blkRows = getSectionRows(lines, l => /^blocks$/i.test(l), 2, N);
+  const blkF = new Array(N).fill(0),
+        blkA = new Array(N).fill(0);
+  for (let r = 0; r < N; r++) {
+    const parts = (blkRows[r] || "").split(/\s+/);
+    blkF[r] = toInt(parts[0]);
+    blkA[r] = toInt(parts[1]);
+  }
+
+  const foulRows = getSectionRows(lines, l => /^fouls$/i.test(l), 2, N);
+  const pfC = new Array(N).fill(0),
+        pfD = new Array(N).fill(0);
+  for (let r = 0; r < N; r++) {
+    const parts = (foulRows[r] || "").split(/\s+/);
+    pfC[r] = toInt(parts[0]);
+    pfD[r] = toInt(parts[1]);
+  }
+
+  const pirRows = getSectionRows(lines, l => /^pir\b/i.test(l), 1, N);
+  const plusMinus = new Array(N).fill(0);
+  for (let r = 0; r < N; r++) {
+    const parts = (pirRows[r] || "").split(/\s+/);
+    plusMinus[r] = toInt(parts[1]);
+  }
+
+  for (let r = 0; r < N; r++) {
+    let mStr = "0", sStr = "0";
+    if (mins[r] && mins[r].includes(":")) {
+      const parts = mins[r].split(":");
+      mStr = parts[0] || "0";
+      sStr = parts[1] || "0";
+    }
+
+    const fgm = twoM[r] + threeM[r];
+    const fga = twoA[r] + threeA[r];
+
+    const statsObj = {
+      "TEAM": teamLetter,
+      "SHIRT #": players[r].jersey,
+      "PLAYER NAME": players[r].name,
+      "MIN": toInt(mStr),
+      "SEC": toInt(sStr),
+      "FGM": fgm,
+      "FGA": fga,
+      "TP": pts[r],
+      "2PIN": twoM[r],
+      "2PT": twoA[r],
+      "3PIN": threeM[r],
+      "3PT": threeA[r],
+      "FTIN": ftM[r],
+      "FTT": ftA[r],
+      "OREB": oreb[r],
+      "DREB": dreb[r],
+      "TREB": treb[r],
+      "ASS": ast[r],
+      "TO": to[r],
+      "ST": stl[r],
+      "BLK": blkF[r],
+      "BL_R": blkA[r],
+      "PF": pfC[r],
+      "PF_R": pfD[r],
+      "+/-": plusMinus[r]
+    };
+
+    result.push({
+      stats: statsObj,
+      name: players[r].name,
+      key: nameKey(players[r].name),
+      team: teamLetter,
+      jersey: players[r].jersey
+    });
+  }
+  return result;
+}
+
+function normNameBase(name) {
+  if (!name) return "";
+  let n = String(name).replace('*','').toLowerCase();
+  try { n = n.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); } catch(e){}
+  n = n.replace(/[^a-z\s]/g, " ").replace(/\s+/g," ").trim();
+  return n;
+}
+
+function nameKey(name) {
+  const base = normNameBase(name);
+  if (!base) return "";
+  const parts = base.split(" ");
+  if (parts.length === 1) return parts[0];
+  const surname = parts[parts.length - 1];
+  const first = parts[0];
+  return surname + " " + first[0];
+}
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp = new Array(n + 1);
+  for (let j = 0; j <= n; j++) dp[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const temp = dp[j];
+      if (a[i - 1] === b[j - 1]) dp[j] = prev;
+      else dp[j] = Math.min(prev + 1, dp[j] + 1, dp[j - 1] + 1);
+      prev = temp;
+    }
+  }
+  return dp[n];
+}
+
+function nameSimilarity(a, b) {
+  if (!a || !b) return 0;
+  const dist = levenshtein(normNameBase(a), normNameBase(b));
+  const maxLen = Math.max(normNameBase(a).length, normNameBase(b).length);
+  if (maxLen === 0) return 1;
+  return 1 - dist / maxLen;
+}
+
+function isPlayerMappingValid(rs3Jersey, rs3Team, offJersey, offTeam) {
+  if (rs3Team && offTeam && String(rs3Team).trim() !== String(offTeam).trim()) {
+    return false;
+  }
+  if (String(rs3Jersey).trim() !== String(offJersey).trim()) {
+    return false;
+  }
+  return true;
+}
+
+function buildOfficialPlayers(inputA, inputB, header) {
+  const aList = parseEuroTeam(inputA, "A");
+  const bList = parseEuroTeam(inputB, "B");
+  const combined = [...aList, ...bList];
+  const result = [];
+
+  for (const item of combined) {
+    const row = new Array(header.length).fill("");
+    for (let k = 0; k < header.length; k++) {
+      const hName = header[k];
+      if (item.stats[hName] !== undefined) {
+        row[k] = String(item.stats[hName]);
+      }
+    }
+    result.push({
+      row,
+      name: item.name,
+      key: item.key,
+      team: item.team,
+      jersey: item.jersey
+    });
+  }
+  return result;
+}
+
+function normalizeValue(v) {
+  let s = (v == null ? "" : String(v)).trim();
+  if (s === "-") s = "";
+  const numRe = /^[+-]?\d+(\.\d+)?$/;
+  if (s === "" || numRe.test(s)) {
+    const n = parseFloat(s || "0");
+    return "N:" + n;
+  }
+  return "S:" + s.toLowerCase();
+}
+
+async function prepareMatches() {
+  console.log("[Review Player Matches Started]");
+  const myInput = document.getElementById("myData").value;
+  const oA = document.getElementById("officialA").value;
+  const oB = document.getElementById("officialB").value;
+
+  if (!myInput || !oA || !oB) {
+    alert("Please paste: RS3 Data + Official Team A + Official Team B");
+    return;
+  }
+
+  const myTable = parseMyTable(myInput);
+  if (myTable.length === 0) {
+    alert("Your RS3 table is empty after parsing.");
+    return;
+  }
+
+  headerGlobal = myTable[0];
+  jerseyIndexGlobal = headerGlobal.findIndex(h => {
+    const t = String(h||'').toLowerCase();
+    return t === "shirtnr" || t === "shirtno" || t === "shirtn0" || t === "jersey" || t === "#" || t === "number" || t === "no" || t === "shirt #";
+  });
+  const idxTeam   = headerGlobal.indexOf("TEAM") >= 0 ? headerGlobal.indexOf("TEAM") : (headerGlobal.indexOf("Team") >= 0 ? headerGlobal.indexOf("Team") : headerGlobal.indexOf("team"));
+  const idxPlayer = headerGlobal.indexOf("PLAYER NAME") >= 0 ? headerGlobal.indexOf("PLAYER NAME") : (headerGlobal.indexOf("Player name") >= 0 ? headerGlobal.indexOf("Player name") : headerGlobal.indexOf("Player"));
+
+  if (jerseyIndexGlobal === -1 && headerGlobal.length > 1) jerseyIndexGlobal = 1;
+
+  myRowsGlobal = myTable.slice(1);
+
+  if (jerseyIndexGlobal >= 0) {
+    for (let i = 0; i < myRowsGlobal.length; i++) {
+      const row = myRowsGlobal[i];
+      let shirtStr = row[jerseyIndexGlobal] ? String(row[jerseyIndexGlobal]).trim() : "";
+      const shirtNum = parseInt(shirtStr, 10);
+      if (shirtStr === "" || isNaN(shirtNum)) {
+        const player = idxPlayer >= 0 ? (row[idxPlayer] || "") : ("Player #" + (i+1));
+        const team   = idxTeam   >= 0 ? (row[idxTeam]   || "") : "";
+        const msg = `Enter shirt number for ${player}${team ? " (Team " + team + ")" : ""}:`;
+        const input = prompt(msg, "");
+        if (input !== null) {
+          const parsed = parseInt(String(input).trim(), 10);
+          if (!isNaN(parsed)) row[jerseyIndexGlobal] = String(parsed);
+        }
+      }
+    }
+  }
+
+  officialPlayersGlobal = buildOfficialPlayers(oA, oB, headerGlobal);
+
+  const meta = myRowsGlobal.map((row, originalIndex) => {
+    const team = idxTeam >= 0 ? (row[idxTeam] || "") : "";
+    let shirt  = jerseyIndexGlobal >= 0 ? parseInt(row[jerseyIndexGlobal],10) : NaN;
+    if (isNaN(shirt)) shirt = 9999;
+    return { originalIndex, row, team, shirt };
+  });
+
+  meta.sort((a,b) => {
+    const ta = String(a.team), tb = String(b.team);
+    if (ta < tb) return -1;
+    if (ta > tb) return 1;
+    return a.shirt - b.shirt;
+  });
+
+  matchesGlobal = [];
+  const tb = document.getElementById("matchTbody");
+  tb.innerHTML = "";
+
+  let unmappedCount = 0;
+
+  for (let r = 0; r < meta.length; r++) {
+    const origIndex = meta[r].originalIndex;
+    const myRow = meta[r].row || [];
+    const myName = idxPlayer >= 0 ? myRow[idxPlayer] : "";
+    const myTeam = idxTeam   >= 0 ? myRow[idxTeam]   : "";
+    const myShirt = jerseyIndexGlobal >= 0 ? (myRow[jerseyIndexGlobal] || "") : "";
+
+    let matchedOfficialIndex = null;
+    const playerKey = window.normalizeName(myName);
+
+    if (playerKey) {
+      const mapping = await window.getPlayerMapping(playerKey);
+      if (mapping && mapping.officialName) {
+        const foundIdx = officialPlayersGlobal.findIndex(p =>
+          p.name.toLowerCase() === mapping.officialName.toLowerCase() ||
+          window.normalizeName(p.name) === window.normalizeName(mapping.officialName)
+        );
+        if (foundIdx !== -1) {
+          matchedOfficialIndex = foundIdx;
+          await window.incrementUsageCount(playerKey);
+        }
+      }
+    }
+
+    if (matchedOfficialIndex == null) {
+      unmappedCount++;
+    }
+
+    matchesGlobal[r] = {
+      myIndex: origIndex,
+      myName,
+      myTeam,
+      myShirt,
+      officialIndex: matchedOfficialIndex
+    };
+
+    const tr = document.createElement("tr");
+    tr.id = "match_row_" + r;
+
+    const tdTeam = document.createElement("td");
+    tdTeam.textContent = myTeam;
+    tr.appendChild(tdTeam);
+
+    const tdShirt = document.createElement("td");
+    tdShirt.textContent = myShirt;
+    tr.appendChild(tdShirt);
+
+    const tdName = document.createElement("td");
+    tdName.id = `rs3_player_cell_${r}`;
+    tdName.textContent = myName;
+    tr.appendChild(tdName);
+
+    const tdFibaTeam = document.createElement("td");
+    const teamSel = document.createElement("select");
+    teamSel.id = "fiba_team_sel_" + r;
+    teamSel.style.width = "60px";
+    ["", "A", "B"].forEach(val => {
+      const opt = document.createElement("option");
+      opt.value = val;
+      opt.textContent = val === "" ? "—" : val;
+      teamSel.appendChild(opt);
+    });
+    if (myTeam === "A" || myTeam === "B") teamSel.value = myTeam;
+    teamSel.onchange = () => populateFibaPlayerDropdown(r);
+    tdFibaTeam.appendChild(teamSel);
+    tr.appendChild(tdFibaTeam);
+
+    const tdSel = document.createElement("td");
+    tdSel.id = `fiba_player_cell_${r}`;
+    const sel = document.createElement("select");
+    sel.id = "match_sel_" + r;
+    tdSel.appendChild(sel);
+    tr.appendChild(tdSel);
+
+    const tdAlert = document.createElement("td");
+    tdAlert.id = `validation_alert_${r}`;
+    tr.appendChild(tdAlert);
+
+    REQUIRED_FIELD_ORDER.slice(3).forEach(colName => {
+      const td = document.createElement("td");
+      td.id = `fiba_${r}_${colName}`;
+      td.textContent = "";
+      tr.appendChild(td);
+    });
+
+    sel.onchange = function() {
+      matchesGlobal[r].officialIndex = parseInt(this.value);
+      updateMatchRowStats(r);
+    };
+    tb.appendChild(tr);
+
+    populateFibaPlayerDropdown(r);
+
+    if (matchedOfficialIndex !== null) {
+      sel.value = String(matchedOfficialIndex);
+      updateMatchRowStats(r);
+    }
+  }
+
+  console.log(matchesGlobal);
+
+  if (unmappedCount === 0) {
+    console.log("[Firebase] All players have saved mappings. Skipping popup.");
+    runComparisonWithMatches();
+  } else {
+    openMatchModal();
+  }
+}
+
+function populateFibaPlayerDropdown(rowIndex) {
+  const meta = matchesGlobal[rowIndex];
+  const teamSel = document.getElementById("fiba_team_sel_" + rowIndex);
+  const wantedTeam = teamSel ? teamSel.value : "";
+  const sel = document.getElementById("match_sel_" + rowIndex);
+  if (!sel) return;
+
+  sel.innerHTML = "";
+  const optNone = document.createElement("option");
+  optNone.value = "-1";
+  optNone.textContent = "— None / no match —";
+  sel.appendChild(optNone);
+
+  let bestIdx = -1;
+  let bestScore = -1;
+
+  officialPlayersGlobal.forEach((p, idx) => {
+    if (wantedTeam && p.team !== wantedTeam) return;
+    
+    const isExactShirt = String(meta.myShirt).trim() === String(p.jersey).trim();
+    const sim = nameSimilarity(meta.myName, p.name);
+    
+    if (isExactShirt && bestScore < 0.9) {
+      bestScore = 0.95;
+      bestIdx = idx;
+    } else if (sim > bestScore) {
+      bestScore = sim;
+      bestIdx = idx;
+    }
+  });
+
+  officialPlayersGlobal.forEach((p, idx) => {
+    if (wantedTeam && p.team !== wantedTeam) return;
+
+    const opt = document.createElement("option");
+    opt.value = String(idx);
+    
+    const isRecommended = (idx === bestIdx && bestScore > 0.4);
+    const starPrefix = isRecommended ? "⭐ " : "";
+    opt.textContent = `${starPrefix}${p.name} (#${p.jersey})`;
+    
+    sel.appendChild(opt);
+  });
+
+  sel.value = "-1";
+  updateMatchRowStats(rowIndex);
+}
+
+function validateAndHighlightRow(r) {
+  const meta = matchesGlobal[r];
+  const tr = document.getElementById("match_row_" + r);
+  const rs3Cell = document.getElementById(`rs3_player_cell_${r}`);
+  const fibaCell = document.getElementById(`fiba_player_cell_${r}`);
+  const alertCell = document.getElementById(`validation_alert_${r}`);
+  const sel = document.getElementById("match_sel_" + r);
+
+  if (!tr) return;
+  tr.classList.remove("row-invalid");
+  if (rs3Cell) rs3Cell.classList.remove("cell-invalid");
+  if (fibaCell) fibaCell.classList.remove("cell-invalid");
+  if (alertCell) alertCell.innerHTML = "";
+  if (sel) sel.title = "";
+
+  if (meta.officialIndex == null || meta.officialIndex < 0) return;
+
+  const off = officialPlayersGlobal[meta.officialIndex];
+  if (!off) return;
+  const isValid = isPlayerMappingValid(meta.myShirt, meta.myTeam, off.jersey, off.team);
+
+  if (!isValid) {
+    tr.classList.add("row-invalid");
+    if (rs3Cell) rs3Cell.classList.add("cell-invalid");
+    if (fibaCell) fibaCell.classList.add("cell-invalid");
+    
+    const tooltipMsg = "Team or Shirt number mismatch detected";
+    if (sel) sel.title = tooltipMsg;
+
+    if (alertCell) {
+      alertCell.innerHTML = `
+        <div class="critical-mapping-card" title="${tooltipMsg}">
+          ⚠ <span>Team/Shirt Mismatch</span>
+        </div>
+      `;
+    }
+  }
+}
+
+function getDuplicateSelectionInfo() {
+  const counts = {};
+  const dupPlayers = {};
+  matchesGlobal.forEach(m => {
+    if (m.officialIndex != null && m.officialIndex >= 0) {
+      counts[m.officialIndex] = (counts[m.officialIndex] || 0) + 1;
+      if (counts[m.officialIndex] > 1) {
+        dupPlayers[m.officialIndex] = officialPlayersGlobal[m.officialIndex].name;
+      }
+    }
+  });
+  const hasDup = Object.values(counts).some(c => c > 1);
+  return { counts, hasDup, dupPlayers };
+}
+
+function refreshDuplicateHighlight() {
+  const info = getDuplicateSelectionInfo();
+  const btnConfirm = document.getElementById("btnConfirmCompare");
+  const alertEl = document.getElementById("dupAlert");
+
+  matchesGlobal.forEach((m, rowIdx) => {
+    const tr = document.getElementById("match_row_" + rowIdx);
+    if (!tr) return;
+
+    if (m.officialIndex != null && m.officialIndex >= 0 && info.counts[m.officialIndex] > 1) {
+      tr.classList.add("row-invalid");
+    } else {
+      validateAndHighlightRow(rowIdx);
+    }
+  });
+
+  if (info.hasDup) {
+    if (btnConfirm) btnConfirm.disabled = true;
+    let dupList = Object.entries(info.dupPlayers).map(([idx, name]) => 
+      `<li>Official player <b>"${name}"</b> selected ${info.counts[idx]} times.</li>`
+    ).join("");
+
+    if (alertEl) {
+      alertEl.innerHTML = `
+        <div>🚨 DUPLICATE PLAYER SELECTION DETECTED</div>
+        <ul style="margin: 4px 0 0 16px; padding: 0;">${dupList}</ul>
+        <div style="font-size: 11px; margin-top: 4px;">Please correct duplicates before confirming comparison.</div>
+      `;
+      alertEl.style.display = "block";
+    }
+  } else {
+    if (btnConfirm) btnConfirm.disabled = false;
+    if (alertEl) alertEl.style.display = "none";
+  }
+}
+
+function updateMatchRowStats(rowIndex) {
+  const sel = document.getElementById("match_sel_" + rowIndex);
+  const val = sel ? sel.value : "-1";
+  const idx = (val === "-1" || val === "" || val == null) ? null : parseInt(val,10);
+  let row = null;
+  if (idx != null && idx >= 0 && officialPlayersGlobal[idx]) {
+    row = officialPlayersGlobal[idx].row;
+    matchesGlobal[rowIndex].officialIndex = idx;
+  } else {
+    matchesGlobal[rowIndex].officialIndex = null;
+  }
+
+  REQUIRED_FIELD_ORDER.slice(3).forEach(colName => {
+    const td = document.getElementById(`fiba_${rowIndex}_${colName}`);
+    if (!td) return;
+    const colIdx = headerGlobal.indexOf(colName);
+    if (row && colIdx >= 0) {
+      td.textContent = row[colIdx] || "";
+    } else {
+      td.textContent = "";
+    }
+  });
+
+  validateAndHighlightRow(rowIndex);
+  refreshDuplicateHighlight();
+}
+
+function openMatchModal() {
+  document.getElementById("overlay").style.display = "block";
+  document.getElementById("matchModal").style.display = "flex";
+}
+
+function closeMatchModal() {
+  document.getElementById("overlay").style.display = "none";
+  document.getElementById("matchModal").style.display = "none";
+}
+
+async function confirmMatchesAndCompare() {
+  const info = getDuplicateSelectionInfo();
+  if (info.hasDup) return;
+
+  const savePromises = [];
+  for (let r = 0; r < matchesGlobal.length; r++) {
+    const m = matchesGlobal[r];
+    if (m.officialIndex != null && m.officialIndex >= 0) {
+      const off = officialPlayersGlobal[m.officialIndex];
+      if (m.myName && off && off.name) {
+        savePromises.push(window.savePlayerMapping(m.myName, off.name, off.team || m.myTeam));
+      }
+    }
+  }
+
+  await Promise.all(savePromises);
+
+  closeMatchModal();
+  runComparisonWithMatches();
+}
+
+function formatCompBox(valA, valB, isUnmapped, isPlayerName = false) {
+  const vA = (valA !== undefined && valA !== null && String(valA).trim() !== "") ? String(valA).trim() : "—";
+  const vB = (valB !== undefined && valB !== null && String(valB).trim() !== "") ? String(valB).trim() : "—";
+
+  if (isUnmapped) {
+    return { html: `<div class="comp-box">${vA} | —</div>`, match: false, isUnmapped: true };
+  }
+
+  if (isPlayerName) {
+    return {
+      html: `<div class="comp-box">${vA} | ${vB}</div>`,
+      match: true,
+      isUnmapped: false
+    };
+  }
+
+  const n1 = normalizeValue(vA);
+  const n2 = normalizeValue(vB);
+  const match = (n1 === n2);
+
+  return {
+    html: `<div class="comp-box">${vA} | ${vB}</div>`,
+    match,
+    isUnmapped: false
+  };
+}
+
+function runComparisonWithMatches() {
+  const header = headerGlobal;
+  const myRows = [];
+  const officialRows = [];
+  const usedOfficial = new Array(officialPlayersGlobal.length).fill(false);
+
+  matchesGlobal.forEach(m => {
+    const myRow = myRowsGlobal[m.myIndex] || [];
+    let offRow;
+    if (m.officialIndex == null || m.officialIndex < 0) {
+      offRow = new Array(header.length).fill("");
+    } else {
+      offRow = officialPlayersGlobal[m.officialIndex].row;
+      usedOfficial[m.officialIndex] = true;
+    }
+    myRows.push({ row: myRow, mapped: m.officialIndex != null && m.officialIndex >= 0, myName: m.myName, myTeam: m.myTeam, myShirt: m.myShirt });
+    officialRows.push(offRow);
+  });
+
+  let missingOfficialCount = 0;
+  for (let i = 0; i < officialPlayersGlobal.length; i++) {
+    if (!usedOfficial[i]) {
+      missingOfficialCount++;
+      myRows.push({ row: new Array(header.length).fill(""), mapped: false, unmappedOfficial: true });
+      officialRows.push(officialPlayersGlobal[i].row);
+    }
+  }
+
+  const maxRows = myRows.length;
+  const idxPlayer = header.indexOf("PLAYER NAME") >= 0 ? header.indexOf("PLAYER NAME") : (header.indexOf("Player name") >= 0 ? header.indexOf("Player name") : header.indexOf("Player"));
+  const idxTeam = header.indexOf("TEAM") >= 0 ? header.indexOf("TEAM") : (header.indexOf("Team") >= 0 ? header.indexOf("Team") : header.indexOf("team"));
+
+  const allCompCols = REQUIRED_FIELD_ORDER.map(colName => {
+    return { name: colName, idx: header.indexOf(colName) };
+  }).filter(s => s.idx >= 0);
+
+  let totalMatched = 0;
+  let totalPlayerMappingIssues = 0;
+  let totalStatMismatches = 0;
+
+  const rowAnalysis = [];
+  for (let r = 0; r < maxRows; r++) {
+    const rData = myRows[r];
+    const a = rData.row || [];
+    const b = officialRows[r] || [];
+
+    const isMapped = rData.mapped;
+
+    const myJersey = jerseyIndexGlobal >= 0 ? a[jerseyIndexGlobal] : "";
+    const offJersey = jerseyIndexGlobal >= 0 ? b[jerseyIndexGlobal] : "";
+    const myTeam = idxTeam >= 0 ? a[idxTeam] : "";
+    const offTeam = idxTeam >= 0 ? b[idxTeam] : "";
+
+    let isPlayerMismatch = false;
+    let hasStatMismatch = false;
+
+    if (isMapped) {
+      if (!isPlayerMappingValid(myJersey, myTeam, offJersey, offTeam)) {
+        isPlayerMismatch = true;
+        totalPlayerMappingIssues++;
+      }
+    } else {
+      totalPlayerMappingIssues++;
+    }
+
+    const colDiffs = {};
+    allCompCols.forEach(col => {
+      const valA = a[col.idx];
+      const valB = b[col.idx];
+      const isPlayerName = (col.name === "PLAYER NAME" || col.name === "Player name");
+      
+      const comp = formatCompBox(valA, valB, !isMapped, isPlayerName);
+      colDiffs[col.name] = comp;
+
+      if (isMapped && !comp.match) {
+        if (col.name === "TEAM" || col.name === "Team" || col.name === "SHIRT #" || col.name === "shirtno") {
+          isPlayerMismatch = true;
+        } else if (!isPlayerName) {
+          hasStatMismatch = true;
+        }
+      }
+    });
+
+    if (hasStatMismatch) totalStatMismatches++;
+
+    let status = "MATCH";
+    let badgeClass = "badge-match";
+    let rowClass = "row-match";
+
+    if (!isMapped) {
+      status = "NOT MAPPED";
+      badgeClass = "badge-not-mapped";
+      rowClass = "row-mismatch";
+    } else if (isPlayerMismatch) {
+      status = "PLAYER MISMATCH";
+      badgeClass = "badge-player-mismatch";
+      rowClass = "row-mismatch";
+    } else if (hasStatMismatch) {
+      status = "STAT MISMATCH";
+      badgeClass = "badge-stat-mismatch";
+      rowClass = "row-mismatch";
+    } else {
+      totalMatched++;
+    }
+
+    rowAnalysis.push({
+      status,
+      badgeClass,
+      rowClass,
+      colDiffs
+    });
+  }
+
+  let summaryHtml = `
+    <div class="summary-panel">
+      <div class="summary-card"><div class="num">${maxRows}</div><div class="label">Total Players</div></div>
+      <div class="summary-card"><div class="num" style="color:var(--match-green-text);">${totalMatched}</div><div class="label">Matched Players</div></div>
+      <div class="summary-card"><div class="num" style="color:var(--mismatch-red-text);">${totalPlayerMappingIssues}</div><div class="label">Player Mapping Issues</div></div>
+      <div class="summary-card"><div class="num" style="color:var(--primary-blue);">${totalStatMismatches}</div><div class="label">Stat Mismatches</div></div>
+      <div class="summary-card"><div class="num" style="color:var(--warning-orange-text);">${missingOfficialCount}</div><div class="label">Missing Official</div></div>
+    </div>
+  `;
+
+  const subText = isScreenshotMode ? "R|O" : "(RS3 | Official)";
+
+  let tableHtml = `
+    <div id="compTableContainer" class="card" style="padding:0; overflow:hidden;">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              ${allCompCols.map((c, i) => {
+                const stickyCls = (i === 0) ? "sticky-col-1" : (i === 1) ? "sticky-col-2" : (i === 2) ? "sticky-col-3" : "";
+                return `
+                  <th class="${stickyCls}">
+                    ${c.name}
+                    <span class="th-sub">${subText}</span>
+                  </th>
+                `;
+              }).join('')}
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="compTableBody">
+  `;
+
+  rowAnalysis.forEach(row => {
+    tableHtml += `<tr class="${row.rowClass}">`;
+
+    allCompCols.forEach((col, i) => {
+      const diff = row.colDiffs[col.name];
+      let cellCls = "cell-match";
+      if (diff.isUnmapped) cellCls = "cell-unmapped";
+      else if (!diff.match) cellCls = "cell-mismatch";
+
+      const stickyCls = (i === 0) ? "sticky-col-1" : (i === 1) ? "sticky-col-2" : (i === 2) ? "sticky-col-3" : "";
+
+      tableHtml += `<td class="${cellCls} ${stickyCls}">${diff.html}</td>`;
+    });
+
+    tableHtml += `<td><span class="badge ${row.badgeClass}">${row.status}</span></td>`;
+    tableHtml += `</tr>`;
+  });
+
+  tableHtml += `
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("resultContainer").innerHTML = summaryHtml + tableHtml;
+  document.getElementById("qaToolbar").style.display = "flex";
+}
+</script>
+
+</body>
+</html>
