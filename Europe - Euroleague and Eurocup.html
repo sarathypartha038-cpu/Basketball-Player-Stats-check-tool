@@ -664,6 +664,43 @@ const REQUIRED_FIELD_ORDER = [
   "ASS", "TO", "ST", "BLK", "BL_R", "PF", "PF_R", "+/-"
 ];
 
+function normalizeHeaderName(h) {
+  if (!h) return "";
+  const s = String(h).trim();
+  const lower = s.toLowerCase();
+
+  // TEAM mapping
+  if (lower === "team") {
+    return "TEAM";
+  }
+
+  // SHIRT # mapping
+  if (
+    lower === "shirt #" ||
+    lower === "shirt#" ||
+    lower === "shirtno" ||
+    lower === "shirtnr" ||
+    lower === "shirtn0" ||
+    lower === "jersey" ||
+    lower === "number" ||
+    lower === "no" ||
+    lower === "#"
+  ) {
+    return "SHIRT #";
+  }
+
+  // PLAYER NAME mapping
+  if (
+    lower === "player name" ||
+    lower === "player" ||
+    lower === "player_name"
+  ) {
+    return "PLAYER NAME";
+  }
+
+  return s;
+}
+
 function toggleInputs() {
   const container = document.getElementById("stickyInputs");
   const btn = document.getElementById("toggleInputBtn");
@@ -1101,13 +1138,16 @@ async function prepareMatches() {
     return;
   }
 
-  headerGlobal = myTable[0];
+  headerGlobal = myTable[0].map(h => normalizeHeaderName(h));
+  
   jerseyIndexGlobal = headerGlobal.findIndex(h => {
     const t = String(h||'').toLowerCase();
-    return t === "shirtnr" || t === "shirtno" || t === "shirtn0" || t === "jersey" || t === "#" || t === "number" || t === "no" || t === "shirt #";
+    return t === "shirt #" || t === "shirtno" || t === "shirtnr" || t === "shirtn0" || t === "jersey" || t === "#" || t === "number" || t === "no";
   });
-  const idxTeam   = headerGlobal.indexOf("TEAM") >= 0 ? headerGlobal.indexOf("TEAM") : (headerGlobal.indexOf("Team") >= 0 ? headerGlobal.indexOf("Team") : headerGlobal.indexOf("team"));
-  const idxPlayer = headerGlobal.indexOf("PLAYER NAME") >= 0 ? headerGlobal.indexOf("PLAYER NAME") : (headerGlobal.indexOf("Player name") >= 0 ? headerGlobal.indexOf("Player name") : headerGlobal.indexOf("Player"));
+  if (jerseyIndexGlobal === -1) jerseyIndexGlobal = headerGlobal.indexOf("SHIRT #");
+
+  const idxTeam   = headerGlobal.indexOf("TEAM");
+  const idxPlayer = headerGlobal.indexOf("PLAYER NAME");
 
   if (jerseyIndexGlobal === -1 && headerGlobal.length > 1) jerseyIndexGlobal = 1;
 
@@ -1514,8 +1554,8 @@ function runComparisonWithMatches() {
   }
 
   const maxRows = myRows.length;
-  const idxPlayer = header.indexOf("PLAYER NAME") >= 0 ? header.indexOf("PLAYER NAME") : (header.indexOf("Player name") >= 0 ? header.indexOf("Player name") : header.indexOf("Player"));
-  const idxTeam = header.indexOf("TEAM") >= 0 ? header.indexOf("TEAM") : (header.indexOf("Team") >= 0 ? header.indexOf("Team") : header.indexOf("team"));
+  const idxPlayer = header.indexOf("PLAYER NAME");
+  const idxTeam = header.indexOf("TEAM");
 
   const allCompCols = REQUIRED_FIELD_ORDER.map(colName => {
     return { name: colName, idx: header.indexOf(colName) };
@@ -1554,13 +1594,13 @@ function runComparisonWithMatches() {
     allCompCols.forEach(col => {
       const valA = a[col.idx];
       const valB = b[col.idx];
-      const isPlayerName = (col.name === "PLAYER NAME" || col.name === "Player name");
+      const isPlayerName = (col.name === "PLAYER NAME");
       
       const comp = formatCompBox(valA, valB, !isMapped, isPlayerName);
       colDiffs[col.name] = comp;
 
       if (isMapped && !comp.match) {
-        if (col.name === "TEAM" || col.name === "Team" || col.name === "SHIRT #" || col.name === "shirtno") {
+        if (col.name === "TEAM" || col.name === "SHIRT #") {
           isPlayerMismatch = true;
         } else if (!isPlayerName) {
           hasStatMismatch = true;
