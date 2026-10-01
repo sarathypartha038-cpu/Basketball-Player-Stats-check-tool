@@ -588,7 +588,6 @@
     appId: "1:381408374288:web:3b49d6534e9f9ded5fe495"
   };
 
-  // Initialize Firebase and Firestore globally
   let app, db;
   function initializeFirebase() {
     if (!app) {
@@ -598,7 +597,6 @@
     return db;
   }
 
-  // Expose Firebase functions and objects globally so existing code can invoke them
   window.firebaseAPI = {
     initializeFirebase,
     doc,
@@ -613,15 +611,14 @@
 <script>
 // ---------- Global State Variables ----------
 let headerGlobal = [];
-let myRowsGlobal = [];              // RS3 rows (without header)
-let officialPlayersGlobal = [];     // {row, name, key, team, jersey}
-let matchesGlobal = [];             // per row: {myIndex, myName, myTeam, myShirt, officialIndex|null}
-let statCols = {};                  // indices for stats columns
-let jerseyIndexGlobal = -1;         // jersey column index (RS3 + official)
-let activeExpandedTargetId = null;  // tracks textarea source for maximize view
-let isScreenshotMode = false;       // Screenshot Mode state toggle
+let myRowsGlobal = [];              
+let officialPlayersGlobal = [];     
+let matchesGlobal = [];             
+let statCols = {};                  
+let jerseyIndexGlobal = -1;         
+let activeExpandedTargetId = null;  
+let isScreenshotMode = false;       
 
-// COMPETITION NAME
 let COMPETITION_NAME = "";
 let officialTeamsList = [];
 
@@ -630,14 +627,12 @@ function normalizeName(name) {
   if (!name) return "";
   let n = String(name).replace('*','').toLowerCase();
   n = n.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  // Remove apostrophes, dots, hyphens, and extra spaces
   n = n.replace(/['\.\-]/g, "");
   n = n.replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g," ").trim();
-  // Replace spaces with underscores
   return n.replace(/\s+/g, "_");
 }
 
-// ---------- Firebase Helper Functions (Exact Structure) ----------
+// ---------- Firebase Helper Functions ----------
 function getFirestoreInstance() {
   if (window.firebaseAPI && window.firebaseAPI.initializeFirebase) {
     return window.firebaseAPI.initializeFirebase();
@@ -649,18 +644,16 @@ async function getPlayerMapping(playerKey) {
   const db = getFirestoreInstance();
   if (!db || !window.firebaseAPI) return null;
 
-  console.log("[Firebase] Searching:", playerKey);
   try {
     const docRef = window.firebaseAPI.doc(db, "playerMappings", "Official", "players", playerKey);
     const docSnap = await window.firebaseAPI.getDoc(docRef);
     if (docSnap.exists()) {
-      console.log("[Firebase] Mapping Found");
+      console.log("[Firebase Mapping Found]");
       return docSnap.data();
     }
   } catch (err) {
     console.error("Error loading player mapping:", err);
   }
-  console.log("[Firebase] Mapping Not Found");
   return null;
 }
 
@@ -669,7 +662,6 @@ async function savePlayerMapping(rs3Name, officialName) {
   if (!db || !window.firebaseAPI) return;
 
   const playerKey = normalizeName(rs3Name);
-
   try {
     const docRef = window.firebaseAPI.doc(db, "playerMappings", "Official", "players", playerKey);
     const existing = await getPlayerMapping(playerKey);
@@ -689,7 +681,7 @@ async function savePlayerMapping(rs3Name, officialName) {
         updatedAt: window.firebaseAPI.serverTimestamp()
       });
     }
-    console.log("[Firebase] Player Mapping Saved");
+    console.log("[Firebase Mapping Saved]");
   } catch (err) {
     console.error("Error saving player mapping:", err);
   }
@@ -705,6 +697,24 @@ function closeToolGuideModal() {
   document.getElementById("overlay").style.display = "none";
   document.getElementById("toolGuideModal").style.display = "none";
 }
+
+// Global Event Listeners for ESC and Outside Modal Click
+window.addEventListener("click", function(event) {
+  const overlay = document.getElementById("overlay");
+  if (event.target === overlay) {
+    closeToolGuideModal();
+    closeExpandModal();
+    closeMatchModal();
+  }
+});
+
+window.addEventListener("keydown", function(event) {
+  if (event.key === "Escape") {
+    closeToolGuideModal();
+    closeExpandModal();
+    closeMatchModal();
+  }
+});
 
 // ---------- Sticky & Expand UI Logic ----------
 function toggleInputs() {
@@ -1013,50 +1023,26 @@ function isPlayerMappingValid(rs3Jersey, rs3Team, offJersey, offTeam) {
   return true;
 }
 
-function extractTeamNamesFromText(textInput) {
-  const names = new Set();
-  if (!textInput.trim()) return [];
-  const lines = textInput.split(/\r?\n/);
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.length > 2 && !/^\d+$/.test(trimmed) && !/\d{1,2}:\d{2}/.test(trimmed)) {
-      if (isNaN(trimmed) && !/\d+\s*\/\s*\d+/.test(trimmed)) {
-        names.add(trimmed);
-      }
-    }
-  }
-  return Array.from(names);
-}
-
-function buildOfficialPlayers(inputA, inputB, header, jerseyIndex, teamIndex) {
-  const sources = [
-    { text: inputA, team: "A" },
-    { text: inputB, team: "B" }
-  ];
-  const result = [];
+function buildOfficialPlayers(inputA, inputB, header, jerseyIndex) {
   const colIndexByName = name => header.indexOf(name);
+  const idxTeam = header.indexOf("Team");
+  const idxJersey = jerseyIndex >= 0 ? jerseyIndex : header.indexOf("shirtno");
 
-  officialTeamsList = [];
+  const aBlocks = splitPlayers(inputA);
+  const bBlocks = splitPlayers(inputB);
 
-  for (const src of sources) {
-    if (!src.text.trim()) continue;
-    
-    const extracted = extractTeamNamesFromText(src.text);
-    if (extracted.length > 0) {
-      officialTeamsList.push({ key: src.team, name: extracted[0] });
-    } else {
-      officialTeamsList.push({ key: src.team, name: "Team " + src.team });
-    }
+  const result = [];
 
-    const blocks = splitPlayers(src.text);
+  const processBlocks = (blocks, teamName) => {
     for (const block of blocks) {
       const p = parseFibaPlayer(block);
+      if (!p.name) continue;
+
       const row = new Array(header.length).fill("");
+      const set = (idx, v) => { if (idx >= 0) row[idx] = String(v != null ? v : ""); };
 
-      const set = (idx, v) => { if (idx >= 0) row[idx] = String(v); };
-
-      set(teamIndex, src.team);
-      set(jerseyIndex, p.jersey);
+      set(idxTeam, teamName);
+      set(idxJersey, p.jersey);
       set(colIndexByName("Player name"), p.name);
       set(colIndexByName("MIN"), p.min);
       set(colIndexByName("SEC"), p.sec);
@@ -1083,11 +1069,14 @@ function buildOfficialPlayers(inputA, inputB, header, jerseyIndex, teamIndex) {
         row,
         name: p.name,
         key: nameKey(p.name),
-        team: src.team,
+        team: teamName,
         jersey: p.jersey
       });
     }
-  }
+  };
+
+  processBlocks(aBlocks, "A");
+  processBlocks(bBlocks, "B");
   return result;
 }
 
@@ -1102,215 +1091,224 @@ function normalizeValue(v) {
   return "S:" + s.toLowerCase();
 }
 
-// ---------- WORKFLOW CONTROLLER & FIREBASE LOOKUP LOGIC ----------
+// ---------- PREPARE MATCH WORKFLOW ----------
 async function prepareMatchesWorkflow() {
-  const myInput = document.getElementById("myData").value;
-  const oA = document.getElementById("officialA").value;
-  const oB = document.getElementById("officialB").value;
+  console.log("[Review Player Matches Started]");
+  try {
+    const myInput = document.getElementById("myData").value;
+    const oA = document.getElementById("officialA").value;
+    const oB = document.getElementById("officialB").value;
 
-  if(!myInput || !oA || !oB) {
-    alert("Please paste: RS3 Data + Official Team A + Official Team B");
-    return;
-  }
+    if(!myInput || !oA || !oB) {
+      alert("Please paste: RS3 Data + Official Team A + Official Team B");
+      return;
+    }
 
-  const myTable = parseMyTable(myInput);
-  if (myTable.length === 0) {
-    alert("Your RS3 table is empty after parsing.");
-    return;
-  }
+    const myTable = parseMyTable(myInput);
+    if (myTable.length === 0) {
+      alert("Your RS3 table is empty after parsing.");
+      return;
+    }
 
-  headerGlobal = myTable[0];
-  jerseyIndexGlobal = headerGlobal.findIndex(h => {
-    const t = h.toLowerCase();
-    return t === "shirtnr" || t === "shirtno" || t === "shirtn0" || t === "jersey" || t === "#";
-  });
-  const idxTeam   = headerGlobal.indexOf("Team");
-  const idxPlayer = headerGlobal.indexOf("Player name");
+    headerGlobal = myTable[0];
+    jerseyIndexGlobal = headerGlobal.findIndex(h => {
+      const t = String(h||'').toLowerCase();
+      return t === "shirtnr" || t === "shirtno" || t === "shirtn0" || t === "jersey" || t === "#" || t === "number" || t === "no";
+    });
+    const idxTeam   = headerGlobal.indexOf("Team") >= 0 ? headerGlobal.indexOf("Team") : headerGlobal.indexOf("team");
+    const idxPlayer = headerGlobal.indexOf("Player name") >= 0 ? headerGlobal.indexOf("Player name") : headerGlobal.indexOf("Player");
 
-  if (jerseyIndexGlobal === -1 && headerGlobal.length > 1) jerseyIndexGlobal = 1;
-  myRowsGlobal = myTable.slice(1);
+    if (jerseyIndexGlobal === -1 && headerGlobal.length > 1) jerseyIndexGlobal = 1;
 
-  if (jerseyIndexGlobal >= 0) {
-    for (let i = 0; i < myRowsGlobal.length; i++) {
-      const row = myRowsGlobal[i];
-      let shirtStr = row[jerseyIndexGlobal] ? String(row[jerseyIndexGlobal]).trim() : "";
-      const shirtNum = parseInt(shirtStr, 10);
-      if (shirtStr === "" || isNaN(shirtNum)) {
-        const player = idxPlayer >= 0 ? (row[idxPlayer] || "") : ("Player #" + (i+1));
-        const team   = idxTeam   >= 0 ? (row[idxTeam]   || "") : "";
-        const msg = `Enter shirt number for ${player}${team ? " (Team " + team + ")" : ""}:`;
-        const input = prompt(msg, "");
-        if (input !== null) {
-          const parsed = parseInt(String(input).trim(), 10);
-          if (!isNaN(parsed)) row[jerseyIndexGlobal] = String(parsed);
+    myRowsGlobal = myTable.slice(1);
+
+    if (jerseyIndexGlobal >= 0) {
+      for (let i = 0; i < myRowsGlobal.length; i++) {
+        const row = myRowsGlobal[i];
+        let shirtStr = row[jerseyIndexGlobal] ? String(row[jerseyIndexGlobal]).trim() : "";
+        const shirtNum = parseInt(shirtStr, 10);
+        if (shirtStr === "" || isNaN(shirtNum)) {
+          const player = idxPlayer >= 0 ? (row[idxPlayer] || "") : ("Player #" + (i+1));
+          const team   = idxTeam   >= 0 ? (row[idxTeam]   || "") : "";
+          const msg = `Enter shirt number for ${player}${team ? " (Team " + team + ")" : ""}:`;
+          const input = prompt(msg, "");
+          if (input !== null) {
+            const parsed = parseInt(String(input).trim(), 10);
+            if (!isNaN(parsed)) row[jerseyIndexGlobal] = String(parsed);
+          }
         }
       }
     }
-  }
 
-  statCols = {
-    Team: idxTeam,
-    MIN: headerGlobal.indexOf("MIN"),
-    SEC: headerGlobal.indexOf("SEC"),
-    TP: headerGlobal.indexOf("TP"),
-    FGM: headerGlobal.indexOf("FGM"),
-    FGA: headerGlobal.indexOf("FGA"),
-    _2PIN: headerGlobal.indexOf("2PIN"),
-    _2PT: headerGlobal.indexOf("2PT"),
-    _3PIN: headerGlobal.indexOf("3PIN"),
-    _3PT: headerGlobal.indexOf("3PT"),
-    FTIN: headerGlobal.indexOf("FTIN"),
-    FTT: headerGlobal.indexOf("FTT"),
-    OREB: headerGlobal.indexOf("OREB"),
-    DREB: headerGlobal.indexOf("DREB"),
-    TREB: headerGlobal.indexOf("TREB"),
-    ASS: headerGlobal.indexOf("ASS"),
-    PF: headerGlobal.indexOf("PF"),
-    TO: headerGlobal.indexOf("TO"),
-    ST: headerGlobal.indexOf("ST"),
-    BLK: headerGlobal.indexOf("BLK"),
-    PM: headerGlobal.indexOf("+-")
-  };
-
-  officialPlayersGlobal = buildOfficialPlayers(oA, oB, headerGlobal, jerseyIndexGlobal, idxTeam);
-
-  const meta = myRowsGlobal.map((row, originalIndex) => {
-    const team = idxTeam >= 0 ? (row[idxTeam] || "") : "";
-    let shirt  = jerseyIndexGlobal >= 0 ? parseInt(row[jerseyIndexGlobal],10) : NaN;
-    if (isNaN(shirt)) shirt = 9999;
-    return { originalIndex, row, team, shirt };
-  });
-
-  meta.sort((a,b) => {
-    const ta = String(a.team), tb = String(b.team);
-    if (ta < tb) return -1;
-    if (ta > tb) return 1;
-    return a.shirt - b.shirt;
-  });
-
-  matchesGlobal = [];
-  const tb = document.getElementById("matchTbody");
-  tb.innerHTML = "";
-
-  let allPlayersMapped = true;
-
-  for (let r = 0; r < meta.length; r++) {
-    const origIndex = meta[r].originalIndex;
-    const myRow = meta[r].row || [];
-    const myName = idxPlayer >= 0 ? myRow[idxPlayer] : "";
-    const myTeam = idxTeam   >= 0 ? myRow[idxTeam]   : "";
-    const myShirt = jerseyIndexGlobal >= 0 ? (myRow[jerseyIndexGlobal] || "") : "";
-
-    matchesGlobal[r] = {
-      myIndex: origIndex,
-      myName,
-      myTeam,
-      myShirt,
-      officialIndex: null
+    statCols = {
+      Team: idxTeam,
+      MIN: headerGlobal.indexOf("MIN"),
+      SEC: headerGlobal.indexOf("SEC"),
+      TP: headerGlobal.indexOf("TP"),
+      FGM: headerGlobal.indexOf("FGM"),
+      FGA: headerGlobal.indexOf("FGA"),
+      _2PIN: headerGlobal.indexOf("2PIN"),
+      _2PT: headerGlobal.indexOf("2PT"),
+      _3PIN: headerGlobal.indexOf("3PIN"),
+      _3PT: headerGlobal.indexOf("3PT"),
+      FTIN: headerGlobal.indexOf("FTIN"),
+      FTT: headerGlobal.indexOf("FTT"),
+      OREB: headerGlobal.indexOf("OREB"),
+      DREB: headerGlobal.indexOf("DREB"),
+      TREB: headerGlobal.indexOf("TREB"),
+      ASS: headerGlobal.indexOf("ASS"),
+      PF: headerGlobal.indexOf("PF"),
+      TO: headerGlobal.indexOf("TO"),
+      ST: headerGlobal.indexOf("ST"),
+      BLK: headerGlobal.indexOf("BLK"),
+      PM: headerGlobal.indexOf("+-")
     };
 
-    // 1. Generate playerKey
-    const playerKey = normalizeName(myName);
+    officialPlayersGlobal = buildOfficialPlayers(oA, oB, headerGlobal, jerseyIndexGlobal);
 
-    // 2. Read from global Firebase path: playerMappings/Official/players/playerKey
-    const mappingRecord = await getPlayerMapping(playerKey);
+    const meta = myRowsGlobal.map((row, originalIndex) => {
+      const team = idxTeam >= 0 ? (row[idxTeam] || "") : "";
+      let shirt  = jerseyIndexGlobal >= 0 ? parseInt(row[jerseyIndexGlobal],10) : NaN;
+      if (isNaN(shirt)) shirt = 9999;
+      return { originalIndex, row, team, shirt };
+    });
 
-    let assignedOfficialIndex = null;
-    if (mappingRecord && mappingRecord.officialName) {
-      // 3. If mapping exists, automatically find matching official player in officialPlayersGlobal
-      const officialNameTarget = normalizeName(mappingRecord.officialName);
-      for (let oi = 0; oi < officialPlayersGlobal.length; oi++) {
-        const op = officialPlayersGlobal[oi];
-        if (normalizeName(op.name) === officialNameTarget) {
-          assignedOfficialIndex = oi;
-          console.log("[Firebase] Auto Matched");
-          break;
+    meta.sort((a,b) => {
+      const ta = String(a.team), tb = String(b.team);
+      if (ta < tb) return -1;
+      if (ta > tb) return 1;
+      return a.shirt - b.shirt;
+    });
+
+    matchesGlobal = [];
+    const tb = document.getElementById("matchTbody");
+    tb.innerHTML = "";
+
+    let unmappedCount = 0;
+
+    for (let r = 0; r < meta.length; r++) {
+      const origIndex = meta[r].originalIndex;
+      const myRow = meta[r].row || [];
+      const myName = idxPlayer >= 0 ? myRow[idxPlayer] : "";
+      const myTeam = idxTeam   >= 0 ? myRow[idxTeam]   : "";
+      const myShirt = jerseyIndexGlobal >= 0 ? (myRow[jerseyIndexGlobal] || "") : "";
+
+      let matchedOfficialIndex = null;
+      const playerKey = normalizeName(myName);
+
+      if (playerKey) {
+        const mapping = await getPlayerMapping(playerKey);
+        if (mapping && mapping.officialName) {
+          const foundIdx = officialPlayersGlobal.findIndex(p =>
+            p.name.toLowerCase() === mapping.officialName.toLowerCase() ||
+            normalizeName(p.name) === normalizeName(mapping.officialName)
+          );
+          if (foundIdx !== -1) {
+            matchedOfficialIndex = foundIdx;
+          }
         }
+      }
+
+      if (matchedOfficialIndex == null) {
+        unmappedCount++;
+      }
+
+      matchesGlobal[r] = {
+        myIndex: origIndex,
+        myName,
+        myTeam,
+        myShirt,
+        officialIndex: matchedOfficialIndex
+      };
+
+      const tr = document.createElement("tr");
+      tr.id = "match_row_" + r;
+
+      const tdTeam = document.createElement("td");
+      tdTeam.textContent = myTeam;
+      tr.appendChild(tdTeam);
+
+      const tdShirt = document.createElement("td");
+      tdShirt.textContent = myShirt;
+      tr.appendChild(tdShirt);
+
+      const tdName = document.createElement("td");
+      tdName.id = `rs3_player_cell_${r}`;
+      tdName.textContent = myName;
+      tr.appendChild(tdName);
+
+      const tdFibaTeam = document.createElement("td");
+      const teamSel = document.createElement("select");
+      teamSel.id = "fiba_team_sel_" + r;
+      teamSel.style.width = "60px";
+      ["", "A", "B"].forEach(val => {
+        const opt = document.createElement("option");
+        opt.value = val;
+        opt.textContent = val === "" ? "—" : val;
+        teamSel.appendChild(opt);
+      });
+      if (myTeam === "A" || myTeam === "B") teamSel.value = myTeam;
+      teamSel.onchange = () => populateFibaPlayerDropdown(r);
+      tdFibaTeam.appendChild(teamSel);
+      tr.appendChild(tdFibaTeam);
+
+      const tdSel = document.createElement("td");
+      tdSel.id = `fiba_player_cell_${r}`;
+      const sel = document.createElement("select");
+      sel.id = "match_sel_" + r;
+      tdSel.appendChild(sel);
+      tr.appendChild(tdSel);
+
+      const tdAlert = document.createElement("td");
+      tdAlert.id = `validation_alert_${r}`;
+      tr.appendChild(tdAlert);
+
+      function addStatCell(idSuffix) {
+        const td = document.createElement("td");
+        td.id = `fiba_${r}_${idSuffix}`;
+        td.textContent = "";
+        tr.appendChild(td);
+      }
+
+      addStatCell("MIN"); addStatCell("SEC"); addStatCell("TP");
+      addStatCell("FGM"); addStatCell("FGA"); addStatCell("2PIN");
+      addStatCell("2PT"); addStatCell("3PIN"); addStatCell("3PT");
+      addStatCell("FTIN"); addStatCell("FTT"); addStatCell("OREB");
+      addStatCell("DREB"); addStatCell("TREB"); addStatCell("ASS");
+      addStatCell("PF"); addStatCell("TO"); addStatCell("ST");
+      addStatCell("BLK"); addStatCell("PM");
+
+      sel.onchange = () => {
+        const val = sel.value;
+        const idx = (val === "-1" || val === "" || val == null) ? null : parseInt(val, 10);
+        matchesGlobal[r].officialIndex = idx;
+        console.log(`[officialIndex Changed] row ${r}:`, idx);
+        updateMatchRowStats(r);
+      };
+      tb.appendChild(tr);
+
+      populateFibaPlayerDropdown(r);
+
+      if (matchedOfficialIndex !== null) {
+        sel.value = String(matchedOfficialIndex);
+        matchesGlobal[r].officialIndex = matchedOfficialIndex;
+        console.log(`[officialIndex Changed] row ${r} (Firebase):`, matchedOfficialIndex);
+        updateMatchRowStats(r);
       }
     }
 
-    if (assignedOfficialIndex !== null) {
-      // 4. Automatically set matchesGlobal[rowIndex].officialIndex
-      matchesGlobal[r].officialIndex = assignedOfficialIndex;
+    if (unmappedCount === 0) {
+      console.log("[Firebase] All players have saved mappings. Skipping popup.");
+      runComparisonWithMatches();
     } else {
-      allPlayersMapped = false;
+      openMatchModal();
     }
-
-    const tr = document.createElement("tr");
-    tr.id = "match_row_" + r;
-
-    const tdTeam = document.createElement("td");
-    tdTeam.textContent = myTeam;
-    tr.appendChild(tdTeam);
-
-    const tdShirt = document.createElement("td");
-    tdShirt.textContent = myShirt;
-    tr.appendChild(tdShirt);
-
-    const tdName = document.createElement("td");
-    tdName.id = `rs3_player_cell_${r}`;
-    tdName.textContent = myName;
-    tr.appendChild(tdName);
-
-    const tdFibaTeam = document.createElement("td");
-    const teamSel = document.createElement("select");
-    teamSel.id = "fiba_team_sel_" + r;
-    teamSel.style.width = "60px";
-    
-    ["", myTeam].filter((v, i, arr) => arr.indexOf(v) === i).forEach(val => {
-      const opt = document.createElement("option");
-      opt.value = val;
-      opt.textContent = val === "" ? "—" : val;
-      teamSel.appendChild(opt);
-    });
-    teamSel.value = myTeam;
-    teamSel.disabled = true;
-    tdFibaTeam.appendChild(teamSel);
-    tr.appendChild(tdFibaTeam);
-
-    const tdSel = document.createElement("td");
-    tdSel.id = `fiba_player_cell_${r}`;
-    const sel = document.createElement("select");
-    sel.id = "match_sel_" + r;
-    tdSel.appendChild(sel);
-    tr.appendChild(tdSel);
-
-    const tdAlert = document.createElement("td");
-    tdAlert.id = `validation_alert_${r}`;
-    tr.appendChild(tdAlert);
-
-    function addStatCell(idSuffix) {
-      const td = document.createElement("td");
-      td.id = `fiba_${r}_${idSuffix}`;
-      td.textContent = "";
-      tr.appendChild(td);
-    }
-
-    addStatCell("MIN"); addStatCell("SEC"); addStatCell("TP");
-    addStatCell("FGM"); addStatCell("FGA"); addStatCell("2PIN");
-    addStatCell("2PT"); addStatCell("3PIN"); addStatCell("3PT");
-    addStatCell("FTIN"); addStatCell("FTT"); addStatCell("OREB");
-    addStatCell("DREB"); addStatCell("TREB"); addStatCell("ASS");
-    addStatCell("PF"); addStatCell("TO"); addStatCell("ST");
-    addStatCell("BLK"); addStatCell("PM");
-
-    sel.onchange = () => updateMatchRowStats(r);
-    tb.appendChild(tr);
-
-    // 5. Preselect dropdown
-    populateFibaPlayerDropdown(r, assignedOfficialIndex);
-  }
-
-  // 6. If all players are mapped, skip popup entirely and run comparison
-  if (allPlayersMapped && myRowsGlobal.length > 0) {
-    console.log("[Firebase] All players mapped. Skipping popup and running comparison.");
-    runComparisonWithMatches();
-  } else {
-    openMatchModal();
+  } catch (error) {
+    console.error("[prepareMatchesWorkflow Error]:", error);
   }
 }
 
-function populateFibaPlayerDropdown(rowIndex, preselectedOfficialIdx = null) {
+function populateFibaPlayerDropdown(rowIndex) {
   const meta = matchesGlobal[rowIndex];
   const teamSel = document.getElementById("fiba_team_sel_" + rowIndex);
   const wantedTeam = teamSel ? teamSel.value : "";
@@ -1327,7 +1325,8 @@ function populateFibaPlayerDropdown(rowIndex, preselectedOfficialIdx = null) {
   let bestScore = -1;
 
   officialPlayersGlobal.forEach((p, idx) => {
-    if (wantedTeam && p.team !== wantedTeam) return;
+    const isMappedPlayer = (meta.officialIndex === idx);
+    if (wantedTeam && p.team !== wantedTeam && !isMappedPlayer) return;
     
     const isExactShirt = String(meta.myShirt).trim() === String(p.jersey).trim();
     const sim = nameSimilarity(meta.myName, p.name);
@@ -1342,7 +1341,8 @@ function populateFibaPlayerDropdown(rowIndex, preselectedOfficialIdx = null) {
   });
 
   officialPlayersGlobal.forEach((p, idx) => {
-    if (wantedTeam && p.team !== wantedTeam) return;
+    const isMappedPlayer = (meta.officialIndex === idx);
+    if (wantedTeam && p.team !== wantedTeam && !isMappedPlayer) return;
 
     const opt = document.createElement("option");
     opt.value = String(idx);
@@ -1354,12 +1354,11 @@ function populateFibaPlayerDropdown(rowIndex, preselectedOfficialIdx = null) {
     sel.appendChild(opt);
   });
 
-  if (preselectedOfficialIdx !== null && preselectedOfficialIdx !== undefined) {
-    sel.value = String(preselectedOfficialIdx);
+  if (meta.officialIndex !== null && meta.officialIndex !== undefined) {
+    sel.value = String(meta.officialIndex);
   } else {
     sel.value = "-1";
   }
-
   updateMatchRowStats(rowIndex);
 }
 
@@ -1371,8 +1370,7 @@ function validateAndHighlightRow(r) {
   const alertCell = document.getElementById(`validation_alert_${r}`);
   const sel = document.getElementById("match_sel_" + r);
 
-  if (!tr || !rs3Cell || !fibaCell || !alertCell || !sel) return;
-
+  if(!tr) return;
   tr.classList.remove("row-invalid");
   rs3Cell.classList.remove("cell-invalid");
   fibaCell.classList.remove("cell-invalid");
@@ -1432,7 +1430,7 @@ function refreshDuplicateHighlight() {
   });
 
   if (info.hasDup) {
-    if (btnConfirm) btnConfirm.disabled = true;
+    btnConfirm.disabled = true;
     let dupList = Object.entries(info.dupPlayers).map(([idx, name]) => 
       `<li>Official player <b>"${name}"</b> selected ${info.counts[idx]} times.</li>`
     ).join("");
@@ -1444,7 +1442,7 @@ function refreshDuplicateHighlight() {
     `;
     alertEl.style.display = "block";
   } else {
-    if (btnConfirm) btnConfirm.disabled = false;
+    btnConfirm.disabled = false;
     alertEl.style.display = "none";
   }
 }
@@ -1457,8 +1455,10 @@ function updateMatchRowStats(rowIndex) {
   if (idx != null && officialPlayersGlobal[idx]) {
     row = officialPlayersGlobal[idx].row;
     matchesGlobal[rowIndex].officialIndex = idx;
+    console.log(`[officialIndex Changed] row ${rowIndex}:`, idx);
   } else {
     matchesGlobal[rowIndex].officialIndex = null;
+    console.log(`[officialIndex Changed] row ${rowIndex}: null`);
   }
 
   function setCell(idSuffix, colIndex) {
@@ -1496,11 +1496,15 @@ async function confirmMatchesAndCompare() {
   const info = getDuplicateSelectionInfo();
   if (info.hasDup) return;
 
-  for (const m of matchesGlobal) {
+  console.log("[Review Player Matches Started]");
+  console.log(matchesGlobal);
+
+  for (let r = 0; r < matchesGlobal.length; r++) {
+    const m = matchesGlobal[r];
     if (m.officialIndex != null) {
-      const officialPlayer = officialPlayersGlobal[m.officialIndex];
-      if (officialPlayer) {
-        await savePlayerMapping(m.myName, officialPlayer.name);
+      const off = officialPlayersGlobal[m.officialIndex];
+      if (m.myName && off && off.name) {
+        await savePlayerMapping(m.myName, off.name);
       }
     }
   }
@@ -1509,6 +1513,7 @@ async function confirmMatchesAndCompare() {
   runComparisonWithMatches();
 }
 
+// Format visible comparison box
 function formatCompBox(valA, valB, isUnmapped, isPlayerName = false) {
   const vA = (valA !== undefined && valA !== null && String(valA).trim() !== "") ? String(valA).trim() : "—";
   const vB = (valB !== undefined && valB !== null && String(valB).trim() !== "") ? String(valB).trim() : "—";
@@ -1566,8 +1571,8 @@ function runComparisonWithMatches() {
   }
 
   const maxRows = myRows.length;
-  const idxPlayer = header.indexOf("Player name");
-  const idxTeam = header.indexOf("Team");
+  const idxPlayer = header.indexOf("Player name") >= 0 ? header.indexOf("Player name") : header.indexOf("Player");
+  const idxTeam = header.indexOf("Team") >= 0 ? header.indexOf("Team") : header.indexOf("team");
 
   const allCompCols = [
     { name: "TEAM", idx: idxTeam },
