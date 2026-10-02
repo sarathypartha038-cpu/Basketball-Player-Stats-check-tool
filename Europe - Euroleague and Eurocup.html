@@ -1530,7 +1530,7 @@ function runComparisonWithMatches() {
     }
 
     const colDiffs = {};
-allCompCols.forEach(col => {
+    allCompCols.forEach(col => {
       const valA = col.rs3Idx >= 0 ? aRow[col.rs3Idx] : "";
       const valB = bStats ? bStats[col.name] : "";
       
@@ -1539,12 +1539,11 @@ allCompCols.forEach(col => {
       
       const comp = formatCompBox(valA, valB, !isMapped, !isMetadata);
       colDiffs[col.name] = comp;
-      // ...
 
       if (isMapped && !comp.match) {
         if (col.name === "TEAM" || col.name === "SHIRT #") {
           isPlayerMismatch = true;
-        } else if (!isPlayerName) {
+        } else if (!isMetadata) {
           hasStatMismatch = true;
         }
       }
