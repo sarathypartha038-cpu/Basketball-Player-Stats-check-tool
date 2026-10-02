@@ -698,6 +698,11 @@ function normalizeHeaderName(h) {
     return "PLAYER NAME";
   }
 
+  // PLUS/MINUS mapping
+  if (lower === "+/-" || lower === "+-" || lower === "plus/minus") {
+    return "+-";
+  }
+
   return s;
 }
 
@@ -978,11 +983,12 @@ function parseEuroTeam(text, teamLetter) {
   for (let r = 0; r < N; r++) {
     const parts = (pirRows[r] || "").trim().split(/\s+/);
 
-if (parts.length >= 2) {
-    plusMinus[r] = toInt(parts[1]);
-} else {
-    plusMinus[r] = "";
-}
+    if (parts.length >= 2) {
+      plusMinus[r] = toInt(parts[1]);
+    } else {
+      plusMinus[r] = "";
+    }
+  }
 
   for (let r = 0; r < N; r++) {
     let mStr = "0", sStr = "0";
