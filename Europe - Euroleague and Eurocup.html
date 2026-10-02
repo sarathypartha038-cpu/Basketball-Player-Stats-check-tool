@@ -661,7 +661,7 @@ let isScreenshotMode = false;
 const REQUIRED_FIELD_ORDER = [
   "TEAM", "SHIRT #", "PLAYER NAME", "MIN", "SEC", "FGM", "FGA", "TP",
   "2PIN", "2PT", "3PIN", "3PT", "FTIN", "FTT", "OREB", "DREB", "TREB",
-  "ASS", "TO", "ST", "BLK", "BL_R", "PF", "PF_R", "+/-"
+  "ASS", "TO", "ST", "BLK", "BL_R", "PF", "PF_R", "+-"
 ];
 
 function normalizeHeaderName(h) {
@@ -1020,7 +1020,7 @@ if (parts.length >= 2) {
       "BL_R": blkA[r],
       "PF": pfC[r],
       "PF_R": pfD[r],
-      "+/-": plusMinus[r]
+      "+-": plusMinus[r]
     };
 
     result.push({
