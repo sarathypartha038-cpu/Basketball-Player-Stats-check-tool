@@ -976,9 +976,13 @@ function parseEuroTeam(text, teamLetter) {
   const pirRows = getSectionRows(lines, l => /^pir\b/i.test(l), 1, N);
   const plusMinus = new Array(N).fill(0);
   for (let r = 0; r < N; r++) {
-    const parts = (pirRows[r] || "").split(/\s+/);
+    const parts = (pirRows[r] || "").trim().split(/\s+/);
+
+if (parts.length >= 2) {
     plusMinus[r] = toInt(parts[1]);
-  }
+} else {
+    plusMinus[r] = "";
+}
 
   for (let r = 0; r < N; r++) {
     let mStr = "0", sStr = "0";
