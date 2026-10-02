@@ -1416,33 +1416,41 @@ async function confirmMatchesAndCompare() {
   runComparisonWithMatches();
 }
 
-function formatCompBox(valA, valB, isUnmapped, isPlayerName = false) {
-  const vA = (valA !== undefined && valA !== null && String(valA).trim() !== "") ? String(valA).trim() : "—";
-  const vB = (valB !== undefined && valB !== null && String(valB).trim() !== "") ? String(valB).trim() : "—";
+function formatCompBox(valA, valB, isUnmapped, isStatOrNumber = true) {
+  let sA = (valA !== undefined && valA !== null) ? String(valA).trim() : "";
+  let sB = (valB !== undefined && valB !== null) ? String(valB).trim() : "";
 
-  if (isUnmapped) {
-    return { html: `<div class="comp-box">${vA} | —</div>`, match: false, isUnmapped: true };
+  // If it's a numerical stat column, convert empty, "-", or "—" to "0"
+  if (isStatOrNumber) {
+    if (sA === "" || sA === "-" || sA === "—") sA = "0";
+    if (sB === "" || sB === "-" || sB === "—") sB = "0";
+  } else {
+    if (sA === "" || sA === "-") sA = "—";
+    if (sB === "" || sB === "-") sB = "—";
   }
 
-  if (isPlayerName) {
+  if (isUnmapped) {
+    return { html: `<div class="comp-box">${sA} | ${isStatOrNumber ? "0" : "—"}</div>`, match: false, isUnmapped: true };
+  }
+
+  if (!isStatOrNumber) {
     return {
-      html: `<div class="comp-box">${vA} | ${vB}</div>`,
+      html: `<div class="comp-box">${sA} | ${sB}</div>`,
       match: true,
       isUnmapped: false
     };
   }
 
-  const n1 = normalizeValue(vA);
-  const n2 = normalizeValue(vB);
+  const n1 = normalizeValue(sA);
+  const n2 = normalizeValue(sB);
   const match = (n1 === n2);
 
   return {
-    html: `<div class="comp-box">${vA} | ${vB}</div>`,
+    html: `<div class="comp-box">${sA} | ${sB}</div>`,
     match,
     isUnmapped: false
   };
 }
-
 function runComparisonWithMatches() {
   const myRows = [];
   const officialRows = [];
@@ -1522,13 +1530,16 @@ function runComparisonWithMatches() {
     }
 
     const colDiffs = {};
-    allCompCols.forEach(col => {
+allCompCols.forEach(col => {
       const valA = col.rs3Idx >= 0 ? aRow[col.rs3Idx] : "";
       const valB = bStats ? bStats[col.name] : "";
-      const isPlayerName = (col.name === "PLAYER NAME");
       
-      const comp = formatCompBox(valA, valB, !isMapped, isPlayerName);
+      // Treat PLAYER NAME, TEAM, and SHIRT # as non-numeric/metadata fields
+      const isMetadata = (col.name === "PLAYER NAME" || col.name === "TEAM" || col.name === "SHIRT #");
+      
+      const comp = formatCompBox(valA, valB, !isMapped, !isMetadata);
       colDiffs[col.name] = comp;
+      // ...
 
       if (isMapped && !comp.match) {
         if (col.name === "TEAM" || col.name === "SHIRT #") {
