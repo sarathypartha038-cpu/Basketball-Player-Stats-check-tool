@@ -4,6 +4,32 @@
   <meta charset="UTF-8">
   <title>Europe - EuroLeague / EuroCup Boxscore Comparison Dashboard</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  
+  <!-- Firebase SDKs (Modular) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDxfQ9dVawPNEqw_qnD24Ob7hXuwG48A5E",
+      authDomain: "basketball-player-databa-b7fbe.firebaseapp.com",
+      projectId: "basketball-player-databa-b7fbe",
+      storageBucket: "basketball-player-databa-b7fbe.firebasestorage.app",
+      messagingSenderId: "381408374288",
+      appId: "1:381408374288:web:3b49d6534e9f9ded5fe495"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Expose Firebase tools globally for our dashboard workflow functions
+    window.FB_db = db;
+    window.FB_doc = doc;
+    window.FB_getDoc = getDoc;
+    window.FB_setDoc = setDoc;
+    window.FB_serverTimestamp = serverTimestamp;
+  </script>
+
   <style>
     :root {
       --navy-bg: #17233A;
@@ -299,6 +325,7 @@
       white-space: pre;
     }
 
+    /* Tool Guide Modal Specific Styles */
     .tool-guide-modal {
       max-width: 700px;
     }
@@ -544,111 +571,6 @@
   </div>
 </div>
 
-<!-- Firebase Integration Module -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyDxfQ9dVawPNEqw_qnD24Ob7hXuwG48A5E",
-    authDomain: "basketball-player-databa-b7fbe.firebaseapp.com",
-    projectId: "basketball-player-databa-b7fbe",
-    storageBucket: "basketball-player-databa-b7fbe.firebasestorage.app",
-    messagingSenderId: "381408374288",
-    appId: "1:381408374288:web:3b49d6534e9f9ded5fe495"
-  };
-
-  let db = null;
-
-  function initializeFirebase() {
-    try {
-      const app = initializeApp(firebaseConfig);
-      db = getFirestore(app);
-    } catch (error) {
-      console.error("[Firebase] Initialization error:", error);
-    }
-  }
-
-  function normalizeName(name) {
-    if (!name) return "";
-    let s = String(name).toLowerCase();
-    s = s.replace(/[\.\'\-]/g, "");
-    s = s.replace(/\s+/g, "_").trim();
-    return s;
-  }
-
-  async function getPlayerMapping(playerKey) {
-    if (!db) return null;
-    try {
-      console.log("[Firebase] Searching:", playerKey);
-      const docRef = doc(db, "playerMappings", "Official", "players", playerKey);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        console.log("[Firebase] Mapping Found:", docSnap.data().rs3Name || playerKey);
-        return docSnap.data();
-      } else {
-        console.log("[Firebase] Mapping Not Found:", playerKey);
-        return null;
-      }
-    } catch (error) {
-      console.error("[Firebase] Error getting player mapping:", error);
-      return null;
-    }
-  }
-
-  async function savePlayerMapping(rs3Name, officialName, team) {
-    if (!db) return;
-    try {
-      const playerKey = normalizeName(rs3Name);
-      console.log("[Firebase] Saving:", rs3Name);
-      const docRef = doc(db, "playerMappings", "Official", "players", playerKey);
-      const docSnap = await getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        await updateDoc(docRef, {
-          officialName: officialName,
-          team: team,
-          updatedAt: serverTimestamp()
-        });
-      } else {
-        await setDoc(docRef, {
-          rs3Name: rs3Name,
-          officialName: officialName,
-          provider: "Official",
-          team: team,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          usageCount: 1
-        });
-      }
-      console.log("[Firebase] Saved Successfully:", rs3Name);
-    } catch (error) {
-      console.error("[Firebase] Error saving player mapping:", error);
-    }
-  }
-
-  async function incrementUsageCount(playerKey) {
-    if (!db) return;
-    try {
-      const docRef = doc(db, "playerMappings", "Official", "players", playerKey);
-      await updateDoc(docRef, {
-        usageCount: increment(1),
-        updatedAt: serverTimestamp()
-      });
-    } catch (error) {
-      console.error("[Firebase] Error incrementing usage count:", error);
-    }
-  }
-
-  initializeFirebase();
-
-  window.initializeFirebase = initializeFirebase;
-  window.normalizeName = normalizeName;
-  window.getPlayerMapping = getPlayerMapping;
-  window.savePlayerMapping = savePlayerMapping;
-  window.incrementUsageCount = incrementUsageCount;
-</script>
-
 <script>
 let headerGlobal = [];
 let myRowsGlobal = [];              
@@ -663,43 +585,6 @@ const REQUIRED_FIELD_ORDER = [
   "2PIN", "2PT", "3PIN", "3PT", "FTIN", "FTT", "OREB", "DREB", "TREB",
   "ASS", "TO", "ST", "BLK", "BL_R", "PF", "PF_R", "+/-"
 ];
-
-function normalizeHeaderName(h) {
-  if (!h) return "";
-  const s = String(h).trim();
-  const lower = s.toLowerCase();
-
-  // TEAM mapping
-  if (lower === "team") {
-    return "TEAM";
-  }
-
-  // SHIRT # mapping
-  if (
-    lower === "shirt #" ||
-    lower === "shirt#" ||
-    lower === "shirtno" ||
-    lower === "shirtnr" ||
-    lower === "shirtn0" ||
-    lower === "jersey" ||
-    lower === "number" ||
-    lower === "no" ||
-    lower === "#"
-  ) {
-    return "SHIRT #";
-  }
-
-  // PLAYER NAME mapping
-  if (
-    lower === "player name" ||
-    lower === "player" ||
-    lower === "player_name"
-  ) {
-    return "PLAYER NAME";
-  }
-
-  return s;
-}
 
 function toggleInputs() {
   const container = document.getElementById("stickyInputs");
@@ -737,6 +622,7 @@ function closeToolGuideModal() {
   document.getElementById("toolGuideModal").style.display = "none";
 }
 
+// Close modals when clicking outside or pressing ESC
 window.addEventListener("click", function(event) {
   const overlay = document.getElementById("overlay");
   if (event.target === overlay) {
@@ -1030,10 +916,17 @@ function parseEuroTeam(text, teamLetter) {
   return result;
 }
 
+function buildOfficialPlayers(inputA, inputB) {
+  const all = [];
+  all.push(...parseEuroTeam(inputA, "A"));
+  all.push(...parseEuroTeam(inputB, "B"));
+  return all;
+}
+
 function normNameBase(name) {
   if (!name) return "";
-  let n = String(name).replace('*','').toLowerCase();
-  try { n = n.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); } catch(e){}
+  let n = String(name).replace('*','').replace('(C)','').toLowerCase();
+  n = n.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   n = n.replace(/[^a-z\s]/g, " ").replace(/\s+/g," ").trim();
   return n;
 }
@@ -1046,6 +939,14 @@ function nameKey(name) {
   const surname = parts[parts.length - 1];
   const first = parts[0];
   return surname + " " + first[0];
+}
+
+function normalizeName(name) {
+  if (!name) return "";
+  let n = String(name).toLowerCase();
+  n = n.replace(/[.\'’-]/g, "");
+  n = n.replace(/\s+/g, "_").trim();
+  return n;
 }
 
 function levenshtein(a, b) {
@@ -1085,31 +986,6 @@ function isPlayerMappingValid(rs3Jersey, rs3Team, offJersey, offTeam) {
   return true;
 }
 
-function buildOfficialPlayers(inputA, inputB, header) {
-  const aList = parseEuroTeam(inputA, "A");
-  const bList = parseEuroTeam(inputB, "B");
-  const combined = [...aList, ...bList];
-  const result = [];
-
-  for (const item of combined) {
-    const row = new Array(header.length).fill("");
-    for (let k = 0; k < header.length; k++) {
-      const hName = header[k];
-      if (item.stats[hName] !== undefined) {
-        row[k] = String(item.stats[hName]);
-      }
-    }
-    result.push({
-      row,
-      name: item.name,
-      key: item.key,
-      team: item.team,
-      jersey: item.jersey
-    });
-  }
-  return result;
-}
-
 function normalizeValue(v) {
   let s = (v == null ? "" : String(v)).trim();
   if (s === "-") s = "";
@@ -1122,12 +998,11 @@ function normalizeValue(v) {
 }
 
 async function prepareMatches() {
-  console.log("[Review Player Matches Started]");
   const myInput = document.getElementById("myData").value;
   const oA = document.getElementById("officialA").value;
   const oB = document.getElementById("officialB").value;
 
-  if (!myInput || !oA || !oB) {
+  if(!myInput || !oA || !oB) {
     alert("Please paste: RS3 Data + Official Team A + Official Team B");
     return;
   }
@@ -1138,16 +1013,13 @@ async function prepareMatches() {
     return;
   }
 
-  headerGlobal = myTable[0].map(h => normalizeHeaderName(h));
-  
+  headerGlobal = myTable[0];
   jerseyIndexGlobal = headerGlobal.findIndex(h => {
-    const t = String(h||'').toLowerCase();
-    return t === "shirt #" || t === "shirtno" || t === "shirtnr" || t === "shirtn0" || t === "jersey" || t === "#" || t === "number" || t === "no";
+    const t = h.toLowerCase();
+    return t === "shirtnr" || t === "shirtno" || t === "shirtn0" || t === "jersey" || t === "#" || t === "shirt #";
   });
-  if (jerseyIndexGlobal === -1) jerseyIndexGlobal = headerGlobal.indexOf("SHIRT #");
-
-  const idxTeam   = headerGlobal.indexOf("TEAM");
-  const idxPlayer = headerGlobal.indexOf("PLAYER NAME");
+  const idxTeam   = headerGlobal.indexOf("Team");
+  const idxPlayer = headerGlobal.findIndex(h => /player/i.test(h));
 
   if (jerseyIndexGlobal === -1 && headerGlobal.length > 1) jerseyIndexGlobal = 1;
 
@@ -1171,7 +1043,7 @@ async function prepareMatches() {
     }
   }
 
-  officialPlayersGlobal = buildOfficialPlayers(oA, oB, headerGlobal);
+  officialPlayersGlobal = buildOfficialPlayers(oA, oB);
 
   const meta = myRowsGlobal.map((row, originalIndex) => {
     const team = idxTeam >= 0 ? (row[idxTeam] || "") : "";
@@ -1188,10 +1060,9 @@ async function prepareMatches() {
   });
 
   matchesGlobal = [];
-  const tb = document.getElementById("matchTbody");
-  tb.innerHTML = "";
-
-  let unmappedCount = 0;
+  const db = window.FB_db;
+  const docRefFn = window.FB_doc;
+  const getDocFn = window.FB_getDoc;
 
   for (let r = 0; r < meta.length; r++) {
     const origIndex = meta[r].originalIndex;
@@ -1200,25 +1071,33 @@ async function prepareMatches() {
     const myTeam = idxTeam   >= 0 ? myRow[idxTeam]   : "";
     const myShirt = jerseyIndexGlobal >= 0 ? (myRow[jerseyIndexGlobal] || "") : "";
 
-    let matchedOfficialIndex = null;
-    const playerKey = window.normalizeName(myName);
+    let assignedOfficialIndex = null;
+    const playerKey = normalizeName(myName);
 
-    if (playerKey) {
-      const mapping = await window.getPlayerMapping(playerKey);
-      if (mapping && mapping.officialName) {
-        const foundIdx = officialPlayersGlobal.findIndex(p =>
-          p.name.toLowerCase() === mapping.officialName.toLowerCase() ||
-          window.normalizeName(p.name) === window.normalizeName(mapping.officialName)
-        );
-        if (foundIdx !== -1) {
-          matchedOfficialIndex = foundIdx;
-          await window.incrementUsageCount(playerKey);
+    if (db && playerKey) {
+      try {
+        console.log(`[Firebase] Searching`, playerKey);
+        const docRef = docRefFn(db, "playerMappings", "Official", "players", playerKey);
+        const docSnap = await getDocFn(docRef);
+        if (docSnap.exists()) {
+          console.log(`[Firebase] Mapping Found`, playerKey);
+          const data = docSnap.data();
+          const offName = data.officialName;
+          if (offName) {
+            const foundIdx = officialPlayersGlobal.findIndex(op => 
+              op.name.toLowerCase() === offName.toLowerCase() ||
+              normNameBase(op.name) === normNameBase(offName)
+            );
+            if (foundIdx >= 0) {
+              assignedOfficialIndex = foundIdx;
+            }
+          }
+        } else {
+          console.log(`[Firebase] Mapping Not Found`, playerKey);
         }
+      } catch (err) {
+        console.error("Error fetching from Firebase:", err);
       }
-    }
-
-    if (matchedOfficialIndex == null) {
-      unmappedCount++;
     }
 
     matchesGlobal[r] = {
@@ -1226,23 +1105,36 @@ async function prepareMatches() {
       myName,
       myTeam,
       myShirt,
-      officialIndex: matchedOfficialIndex
+      officialIndex: assignedOfficialIndex
     };
+  }
 
+  // AUTO SKIP CHECK: If all players already have mappings, run comparison immediately without showing popup
+  const allMapped = matchesGlobal.length > 0 && matchesGlobal.every(m => m.officialIndex !== null);
+  if (allMapped) {
+    runComparisonWithMatches();
+    return;
+  }
+
+  const tb = document.getElementById("matchTbody");
+  tb.innerHTML = "";
+
+  for (let r = 0; r < matchesGlobal.length; r++) {
+    const m = matchesGlobal[r];
     const tr = document.createElement("tr");
     tr.id = "match_row_" + r;
 
     const tdTeam = document.createElement("td");
-    tdTeam.textContent = myTeam;
+    tdTeam.textContent = m.myTeam;
     tr.appendChild(tdTeam);
 
     const tdShirt = document.createElement("td");
-    tdShirt.textContent = myShirt;
+    tdShirt.textContent = m.myShirt;
     tr.appendChild(tdShirt);
 
     const tdName = document.createElement("td");
     tdName.id = `rs3_player_cell_${r}`;
-    tdName.textContent = myName;
+    tdName.textContent = m.myName;
     tr.appendChild(tdName);
 
     const tdFibaTeam = document.createElement("td");
@@ -1255,7 +1147,7 @@ async function prepareMatches() {
       opt.textContent = val === "" ? "—" : val;
       teamSel.appendChild(opt);
     });
-    if (myTeam === "A" || myTeam === "B") teamSel.value = myTeam;
+    if (m.myTeam === "A" || m.myTeam === "B") teamSel.value = m.myTeam;
     teamSel.onchange = () => populateFibaPlayerDropdown(r);
     tdFibaTeam.appendChild(teamSel);
     tr.appendChild(tdFibaTeam);
@@ -1271,35 +1163,30 @@ async function prepareMatches() {
     tdAlert.id = `validation_alert_${r}`;
     tr.appendChild(tdAlert);
 
-    REQUIRED_FIELD_ORDER.slice(3).forEach(colName => {
+    function addStatCell(idSuffix) {
       const td = document.createElement("td");
-      td.id = `fiba_${r}_${colName}`;
+      td.id = `fiba_${r}_${idSuffix}`;
       td.textContent = "";
       tr.appendChild(td);
-    });
+    }
 
-    sel.onchange = function() {
-      matchesGlobal[r].officialIndex = parseInt(this.value);
-      updateMatchRowStats(r);
-    };
+    addStatCell("MIN"); addStatCell("SEC"); addStatCell("FGM"); addStatCell("FGA");
+    addStatCell("TP"); addStatCell("2PIN"); addStatCell("2PT"); addStatCell("3PIN");
+    addStatCell("3PT"); addStatCell("FTIN"); addStatCell("FTT"); addStatCell("OREB");
+    addStatCell("DREB"); addStatCell("TREB"); addStatCell("ASS"); addStatCell("TO");
+    addStatCell("ST"); addStatCell("BLK"); addStatCell("BL_R"); addStatCell("PF"); addStatCell("PF_R"); addStatCell("PM");
+
+    sel.onchange = () => updateMatchRowStats(r);
     tb.appendChild(tr);
 
     populateFibaPlayerDropdown(r);
-
-    if (matchedOfficialIndex !== null) {
-      sel.value = String(matchedOfficialIndex);
+    if (m.officialIndex !== null) {
+      sel.value = String(m.officialIndex);
       updateMatchRowStats(r);
     }
   }
 
-  console.log(matchesGlobal);
-
-  if (unmappedCount === 0) {
-    console.log("[Firebase] All players have saved mappings. Skipping popup.");
-    runComparisonWithMatches();
-  } else {
-    openMatchModal();
-  }
+  openMatchModal();
 }
 
 function populateFibaPlayerDropdown(rowIndex) {
@@ -1309,10 +1196,12 @@ function populateFibaPlayerDropdown(rowIndex) {
   const sel = document.getElementById("match_sel_" + rowIndex);
   if (!sel) return;
 
+  const currentSelection = sel.value;
+
   sel.innerHTML = "";
   const optNone = document.createElement("option");
   optNone.value = "-1";
-  optNone.textContent = "— None / no match —";
+  optNone.textContent = "-- None / no match --";
   sel.appendChild(optNone);
 
   let bestIdx = -1;
@@ -1346,7 +1235,12 @@ function populateFibaPlayerDropdown(rowIndex) {
     sel.appendChild(opt);
   });
 
-  sel.value = "-1";
+  if (currentSelection && currentSelection !== "-1" && Array.from(sel.options).some(o => o.value === currentSelection)) {
+    sel.value = currentSelection;
+  } else {
+    sel.value = "-1";
+  }
+
   updateMatchRowStats(rowIndex);
 }
 
@@ -1358,34 +1252,32 @@ function validateAndHighlightRow(r) {
   const alertCell = document.getElementById(`validation_alert_${r}`);
   const sel = document.getElementById("match_sel_" + r);
 
-  if (!tr) return;
-  tr.classList.remove("row-invalid");
-  if (rs3Cell) rs3Cell.classList.remove("cell-invalid");
-  if (fibaCell) fibaCell.classList.remove("cell-invalid");
-  if (alertCell) alertCell.innerHTML = "";
-  if (sel) sel.title = "";
+  if (!tr || !rs3Cell || !fibaCell || !alertCell || !sel) return;
 
-  if (meta.officialIndex == null || meta.officialIndex < 0) return;
+  tr.classList.remove("row-invalid");
+  rs3Cell.classList.remove("cell-invalid");
+  fibaCell.classList.remove("cell-invalid");
+  alertCell.innerHTML = "";
+  sel.title = "";
+
+  if (meta.officialIndex == null) return;
 
   const off = officialPlayersGlobal[meta.officialIndex];
-  if (!off) return;
   const isValid = isPlayerMappingValid(meta.myShirt, meta.myTeam, off.jersey, off.team);
 
   if (!isValid) {
     tr.classList.add("row-invalid");
-    if (rs3Cell) rs3Cell.classList.add("cell-invalid");
-    if (fibaCell) fibaCell.classList.add("cell-invalid");
+    rs3Cell.classList.add("cell-invalid");
+    fibaCell.classList.add("cell-invalid");
     
     const tooltipMsg = "Team or Shirt number mismatch detected";
-    if (sel) sel.title = tooltipMsg;
+    sel.title = tooltipMsg;
 
-    if (alertCell) {
-      alertCell.innerHTML = `
-        <div class="critical-mapping-card" title="${tooltipMsg}">
-          ⚠ <span>Team/Shirt Mismatch</span>
-        </div>
-      `;
-    }
+    alertCell.innerHTML = `
+      <div class="critical-mapping-card" title="${tooltipMsg}">
+        ⚠ <span>Team/Shirt Mismatch</span>
+      </div>
+    `;
   }
 }
 
@@ -1393,7 +1285,7 @@ function getDuplicateSelectionInfo() {
   const counts = {};
   const dupPlayers = {};
   matchesGlobal.forEach(m => {
-    if (m.officialIndex != null && m.officialIndex >= 0) {
+    if (m.officialIndex != null) {
       counts[m.officialIndex] = (counts[m.officialIndex] || 0) + 1;
       if (counts[m.officialIndex] > 1) {
         dupPlayers[m.officialIndex] = officialPlayersGlobal[m.officialIndex].name;
@@ -1413,7 +1305,7 @@ function refreshDuplicateHighlight() {
     const tr = document.getElementById("match_row_" + rowIdx);
     if (!tr) return;
 
-    if (m.officialIndex != null && m.officialIndex >= 0 && info.counts[m.officialIndex] > 1) {
+    if (m.officialIndex != null && info.counts[m.officialIndex] > 1) {
       tr.classList.add("row-invalid");
     } else {
       validateAndHighlightRow(rowIdx);
@@ -1421,22 +1313,20 @@ function refreshDuplicateHighlight() {
   });
 
   if (info.hasDup) {
-    if (btnConfirm) btnConfirm.disabled = true;
+    btnConfirm.disabled = true;
     let dupList = Object.entries(info.dupPlayers).map(([idx, name]) => 
       `<li>Official player <b>"${name}"</b> selected ${info.counts[idx]} times.</li>`
     ).join("");
 
-    if (alertEl) {
-      alertEl.innerHTML = `
-        <div>🚨 DUPLICATE PLAYER SELECTION DETECTED</div>
-        <ul style="margin: 4px 0 0 16px; padding: 0;">${dupList}</ul>
-        <div style="font-size: 11px; margin-top: 4px;">Please correct duplicates before confirming comparison.</div>
-      `;
-      alertEl.style.display = "block";
-    }
+    alertEl.innerHTML = `
+      <div>🚨 DUPLICATE PLAYER SELECTION DETECTED</div>
+      <ul style="margin: 4px 0 0 16px; padding: 0;">${dupList}</ul>
+      <div style="font-size: 11px; margin-top: 4px;">Please correct duplicates before confirming comparison.</div>
+    `;
+    alertEl.style.display = "block";
   } else {
-    if (btnConfirm) btnConfirm.disabled = false;
-    if (alertEl) alertEl.style.display = "none";
+    btnConfirm.disabled = false;
+    alertEl.style.display = "none";
   }
 }
 
@@ -1444,24 +1334,34 @@ function updateMatchRowStats(rowIndex) {
   const sel = document.getElementById("match_sel_" + rowIndex);
   const val = sel ? sel.value : "-1";
   const idx = (val === "-1" || val === "" || val == null) ? null : parseInt(val,10);
-  let row = null;
-  if (idx != null && idx >= 0 && officialPlayersGlobal[idx]) {
-    row = officialPlayersGlobal[idx].row;
+  let pStats = null;
+  if (idx != null && officialPlayersGlobal[idx]) {
+    pStats = officialPlayersGlobal[idx].stats;
     matchesGlobal[rowIndex].officialIndex = idx;
   } else {
     matchesGlobal[rowIndex].officialIndex = null;
   }
 
-  REQUIRED_FIELD_ORDER.slice(3).forEach(colName => {
-    const td = document.getElementById(`fiba_${rowIndex}_${colName}`);
+  function setCell(idSuffix, fieldKey) {
+    const td = document.getElementById(`fiba_${rowIndex}_${idSuffix}`);
     if (!td) return;
-    const colIdx = headerGlobal.indexOf(colName);
-    if (row && colIdx >= 0) {
-      td.textContent = row[colIdx] || "";
-    } else {
-      td.textContent = "";
-    }
-  });
+    if (pStats && fieldKey in pStats) td.textContent = pStats[fieldKey];
+    else td.textContent = "";
+  }
+
+  setCell("MIN", "MIN"); setCell("SEC", "SEC");
+  setCell("FGM", "FGM"); setCell("FGA", "FGA");
+  setCell("TP", "TP"); setCell("2PIN", "2PIN");
+  setCell("2PT", "2PT"); setCell("3PIN", "3PIN");
+  setCell("3PT", "3PT"); setCell("FTIN", "FTIN");
+  setCell("FTT", "FTT"); setCell("OREB", "OREB");
+  setCell("DREB", "DREB"); setCell("TREB", "TREB");
+  setCell("ASS", "ASS"); setCell("TO", "TO");
+  setCell("ST", "ST"); setCell("BLK", "BLK");
+  setCell("BL_R", "BL_R");
+  setCell("PF", "PF");
+  setCell("PF_R", "PF_R");
+  setCell("PM", "+/-");
 
   validateAndHighlightRow(rowIndex);
   refreshDuplicateHighlight();
@@ -1471,7 +1371,6 @@ function openMatchModal() {
   document.getElementById("overlay").style.display = "block";
   document.getElementById("matchModal").style.display = "flex";
 }
-
 function closeMatchModal() {
   document.getElementById("overlay").style.display = "none";
   document.getElementById("matchModal").style.display = "none";
@@ -1481,18 +1380,37 @@ async function confirmMatchesAndCompare() {
   const info = getDuplicateSelectionInfo();
   if (info.hasDup) return;
 
-  const savePromises = [];
-  for (let r = 0; r < matchesGlobal.length; r++) {
-    const m = matchesGlobal[r];
-    if (m.officialIndex != null && m.officialIndex >= 0) {
-      const off = officialPlayersGlobal[m.officialIndex];
-      if (m.myName && off && off.name) {
-        savePromises.push(window.savePlayerMapping(m.myName, off.name, off.team || m.myTeam));
-      }
+  const db = window.FB_db;
+  const docRefFn = window.FB_doc;
+  const setDocFn = window.FB_setDoc;
+  const serverTimestampFn = window.FB_serverTimestamp;
+
+  if (db) {
+    const savePromises = matchesGlobal.filter(m => m.officialIndex != null).map(m => {
+      const playerKey = normalizeName(m.myName);
+      const offPlayer = officialPlayersGlobal[m.officialIndex];
+      if (!playerKey || !offPlayer) return Promise.resolve();
+
+      console.log(`[Firebase] Saving`, playerKey);
+      const docRef = docRefFn(db, "playerMappings", "Official", "players", playerKey);
+      return setDocFn(docRef, {
+        rs3Name: m.myName,
+        officialName: offPlayer.name,
+        provider: "Official",
+        usageCount: 1,
+        createdAt: serverTimestampFn(),
+        updatedAt: serverTimestampFn()
+      }, { merge: true }).then(() => {
+        console.log(`[Firebase] Saved Successfully`, playerKey);
+      });
+    });
+
+    try {
+      await Promise.all(savePromises);
+    } catch (err) {
+      console.error("Error saving player mappings to Firebase:", err);
     }
   }
-
-  await Promise.all(savePromises);
 
   closeMatchModal();
   runComparisonWithMatches();
@@ -1526,40 +1444,53 @@ function formatCompBox(valA, valB, isUnmapped, isPlayerName = false) {
 }
 
 function runComparisonWithMatches() {
-  const header = headerGlobal;
   const myRows = [];
   const officialRows = [];
   const usedOfficial = new Array(officialPlayersGlobal.length).fill(false);
 
   matchesGlobal.forEach(m => {
     const myRow = myRowsGlobal[m.myIndex] || [];
-    let offRow;
-    if (m.officialIndex == null || m.officialIndex < 0) {
-      offRow = new Array(header.length).fill("");
+    let offStats = null;
+    if (m.officialIndex == null) {
+      offStats = null;
     } else {
-      offRow = officialPlayersGlobal[m.officialIndex].row;
+      offStats = officialPlayersGlobal[m.officialIndex].stats;
       usedOfficial[m.officialIndex] = true;
     }
-    myRows.push({ row: myRow, mapped: m.officialIndex != null && m.officialIndex >= 0, myName: m.myName, myTeam: m.myTeam, myShirt: m.myShirt });
-    officialRows.push(offRow);
+    myRows.push({ row: myRow, mapped: m.officialIndex != null, myName: m.myName, myTeam: m.myTeam, myShirt: m.myShirt });
+    officialRows.push(offStats);
   });
 
   let missingOfficialCount = 0;
   for (let i = 0; i < officialPlayersGlobal.length; i++) {
     if (!usedOfficial[i]) {
       missingOfficialCount++;
-      myRows.push({ row: new Array(header.length).fill(""), mapped: false, unmappedOfficial: true });
-      officialRows.push(officialPlayersGlobal[i].row);
+      myRows.push({ row: [], mapped: false, unmappedOfficial: true });
+      officialRows.push(officialPlayersGlobal[i].stats);
     }
   }
 
   const maxRows = myRows.length;
-  const idxPlayer = header.indexOf("PLAYER NAME");
-  const idxTeam = header.indexOf("TEAM");
+  const idxPlayer = headerGlobal.findIndex(h => /player/i.test(h));
+  const idxTeam = headerGlobal.indexOf("Team");
 
-  const allCompCols = REQUIRED_FIELD_ORDER.map(colName => {
-    return { name: colName, idx: header.indexOf(colName) };
-  }).filter(s => s.idx >= 0);
+  let hasMissingBlrOrPfr = false;
+  officialRows.forEach(st => {
+    if (st && (st["BL_R"] === undefined || st["PF_R"] === undefined)) {
+      hasMissingBlrOrPfr = true;
+    }
+  });
+
+  const allCompCols = REQUIRED_FIELD_ORDER.map(fName => {
+    let rs3Idx = -1;
+    if (fName === "TEAM") rs3Idx = idxTeam;
+    else if (fName === "SHIRT #") rs3Idx = jerseyIndexGlobal;
+    else if (fName === "PLAYER NAME") rs3Idx = idxPlayer;
+    else if (fName === "+/-") rs3Idx = headerGlobal.indexOf("+-");
+    else rs3Idx = headerGlobal.indexOf(fName);
+
+    return { name: fName, rs3Idx };
+  });
 
   let totalMatched = 0;
   let totalPlayerMappingIssues = 0;
@@ -1568,15 +1499,15 @@ function runComparisonWithMatches() {
   const rowAnalysis = [];
   for (let r = 0; r < maxRows; r++) {
     const rData = myRows[r];
-    const a = rData.row || [];
-    const b = officialRows[r] || [];
+    const aRow = rData.row || [];
+    const bStats = officialRows[r];
 
     const isMapped = rData.mapped;
 
-    const myJersey = jerseyIndexGlobal >= 0 ? a[jerseyIndexGlobal] : "";
-    const offJersey = jerseyIndexGlobal >= 0 ? b[jerseyIndexGlobal] : "";
-    const myTeam = idxTeam >= 0 ? a[idxTeam] : "";
-    const offTeam = idxTeam >= 0 ? b[idxTeam] : "";
+    const myJersey = jerseyIndexGlobal >= 0 ? aRow[jerseyIndexGlobal] : "";
+    const offJersey = bStats ? bStats["SHIRT #"] : "";
+    const myTeam = idxTeam >= 0 ? aRow[idxTeam] : "";
+    const offTeam = bStats ? bStats["TEAM"] : "";
 
     let isPlayerMismatch = false;
     let hasStatMismatch = false;
@@ -1592,8 +1523,8 @@ function runComparisonWithMatches() {
 
     const colDiffs = {};
     allCompCols.forEach(col => {
-      const valA = a[col.idx];
-      const valB = b[col.idx];
+      const valA = col.rs3Idx >= 0 ? aRow[col.rs3Idx] : "";
+      const valB = bStats ? bStats[col.name] : "";
       const isPlayerName = (col.name === "PLAYER NAME");
       
       const comp = formatCompBox(valA, valB, !isMapped, isPlayerName);
@@ -1638,6 +1569,15 @@ function runComparisonWithMatches() {
     });
   }
 
+  let warningHtml = "";
+  if (hasMissingBlrOrPfr) {
+    warningHtml = `
+      <div style="background-color: var(--warning-orange-bg); color: var(--warning-orange-text); border: 1px solid #ffeeba; padding: 10px 16px; border-radius: 6px; margin-bottom: 12px; font-weight: 600; font-size: 13px;">
+        BL_R and/or PF_R data not available in the official source feed. Please verify using PDF boxscore.
+      </div>
+    `;
+  }
+
   let summaryHtml = `
     <div class="summary-panel">
       <div class="summary-card"><div class="num">${maxRows}</div><div class="label">Total Players</div></div>
@@ -1648,7 +1588,7 @@ function runComparisonWithMatches() {
     </div>
   `;
 
-  const subText = isScreenshotMode ? "R|O" : "(RS3 | Official)";
+  const subText = "(RS3 | Official)";
 
   let tableHtml = `
     <div id="compTableContainer" class="card" style="padding:0; overflow:hidden;">
@@ -1665,7 +1605,7 @@ function runComparisonWithMatches() {
                   </th>
                 `;
               }).join('')}
-              <th>Status</th>
+              <th>STATUS</th>
             </tr>
           </thead>
           <tbody id="compTableBody">
@@ -1696,7 +1636,7 @@ function runComparisonWithMatches() {
     </div>
   `;
 
-  document.getElementById("resultContainer").innerHTML = summaryHtml + tableHtml;
+  document.getElementById("resultContainer").innerHTML = warningHtml + summaryHtml + tableHtml;
   document.getElementById("qaToolbar").style.display = "flex";
 }
 </script>
